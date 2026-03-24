@@ -7,3 +7,5 @@ scikit_learn
 dill
 uvicorn
 xgboost
+notebook
+
