@@ -8,4 +8,4 @@ dill
 uvicorn
 xgboost
 notebook
-
+scipy
