@@ -1,5 +1,6 @@
 import sys
 import os
+from sklearn.feature_selection import VarianceThreshold, mutual_info_regression
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -86,3 +87,27 @@ class DomainImputer(BaseEstimator, TransformerMixin):
 
 
 
+class DropConstantNumerical(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.variance_threshold:float = 0.01  #threshold for variance below which the feature will be dropped
+
+    def fit(self, X:pd.DataFrame, y=None):
+        X = X.copy()
+        target = 'saleprice'
+        numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature!=target]
+        categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature!=target]
+        vt = VarianceThreshold(0.01)
+        vt.fit(df[numerical])  #checking the constant features of numerical features based on threshold 0.01
+        variance_result = vt.get_support()  #getting the result of checking the passed data with the threshold
+        constant_num_features = [col for col,s in zip(df[numerical],variance_result) if not s]  #storing those numerical features whose variance is below 0.01
+        df = df.drop(columns = constant_num_features)
+        return df
+
+    def transform(self, X):
+        if not self._is_fitted:
+            raise RuntimeError("Pipeline not fitted yet.")
+        X = X.copy()
+        #dropping the 'id' column as it is not useful for prediction and it is just an identifier for each row
+        if 'id' in X.columns:
+            logging.info("DataCleaning: Dropping 'id' column as it is not useful for prediction.")
+            X = X.drop('id', axis=1)
