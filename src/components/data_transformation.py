@@ -518,16 +518,25 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         ])
         return self.preprocessor
    
-    def fit_transform(self, X: pd.DataFrame, y: pd.Series):
-        
+    def fit_transform(self, X: pd.DataFrame, y: pd.Series):  #for fitting and transforming the training data
+        if 'id' in X.columns:
+            X = X.drop(columns=['id'])  #dropping the 'id' column as it doesn't have any importance in the prediction of target variable and it is just a unique identifier for each row in the data
         self.build_prepipeline()
         self.build_feature_selection_pipeline()
-        self.build_preprocessor()
+        
         X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
         X_selected = self.feature_selection_pipeline.fit_transform(X_preprocessed, y) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
         self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
+        self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
         X_encoded = self.preprocessor.fit_transform(X_selected)
+        logged_y = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
         self._is_fitted = True
+        return X_encoded, logged_y
+    def transform(self, X: pd.DataFrame):  #for transforming the test data based on the parameters learned from the training data
+        if not self._is_fitted:
+            raise RuntimeError("DataTransformer not fitted yet.")
+        X_preprocessed = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
+        X_selected = self.feature_selection_pipeline.transform(X_preprocessed) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
+        X_encoded = self.preprocessor.transform(X_selected)
         return X_encoded
-    def transform(self, X: pd.DataFrame):
