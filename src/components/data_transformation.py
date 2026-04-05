@@ -21,6 +21,7 @@ class DataTransformationConfig:
     )  # location where the preprocessor object will be stored after transformation
 
 
+#CLASSES FOR PREPIPELINE CREATION
 # class for changing the data type of the features based on the domain knowledge
 class TypeCaster(BaseEstimator, TransformerMixin):
     def __init__(self):
@@ -140,7 +141,42 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 )  # filling the missing values of 'Electrical' column with the mode value
             return X
 
+class CreateNewFeatures(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.date_features = ['yearbuilt','yrsold','garageyrblt','yearremodadd']
+    def fit(self, X: pd.DataFrame, y=None):
+        return self
+    def transform(self, X):
+        binary_features = {
+            'has_pool': 'poolarea',
+            'has_garage': 'garagearea',
+            'has_fireplace': 'fireplaces',
+            'has_basement': 'totalbsmtsf',
+            'has_2nd_floor': '2nXlrsf',
+            'has_masonry': 'masvnrarea'
+        }
+        if all(c in X.columns for c in ['yearbuilt','yrsold']):
+         X['house_age'] = X['yrsold'] - X['yearbuilt']  #creating the age of house
+        if all(c in X.columns for c in ['garageyrblt','yrsold']): 
+         X['garage_age'] = np.where(X['garageyrblt']!=0,X['yrsold'] - X['garageyrblt'],-1) #creating garage_age, if the garageyrblt is 0, then it means the house didn't had any garage, so we are filling garage age wth -1 in such case
+        if all(c in X.columns for c in ['yearremodadd','yrsold']):
+         X['remodeled_age'] = X['yrsold'] - X['yearremodadd'] #calculating the age of house since it was remodeled
+        for new_feature, original_feature in binary_features.items():
+            if original_feature in X.columns:
+                X[new_feature] = (X[original_feature] > 0).astype(int) 
+               
 
+        cols_to_drop = [feature for feature in self.date_features if feature in X.columns]
+        X = X.drop(columns=cols_to_drop)
+        return X
+
+
+
+
+
+
+
+#CLASSES FOR FEATURE SELECTION
 # class for dropping the constant numerical features from the data based on the variance threshold
 class DropConstantNumerical(BaseEstimator, TransformerMixin):
     def __init__(self):
@@ -379,3 +415,4 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
         )
         X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
         return X
+    
