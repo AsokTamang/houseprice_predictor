@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from scipy import stats
+from typing import Optional
 
 
 @dataclass
@@ -43,7 +44,7 @@ class TypeCaster(BaseEstimator, TransformerMixin):
         )
         return X
 
-
+#class for filling the null values based on domain knowledge
 class DomainImputer(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.none_features = [
@@ -416,3 +417,62 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
         X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
         return X
     
+
+#classes for numerical and categorical encoding and scaling
+class DataTransformer(BaseEstimator, TransformerMixin):
+    nominal_categories = [
+    'mssubclass', 'mszoning', 'alley', 'landcontour', 'lotconfig',
+    'neighborhood', 'condition1', 'condition2', 'bldgtype', 'housestyle',
+    'roofstyle', 'roofmatl', 'exterior1st', 'exterior2nd', 'masvnrtype',
+    'foundation', 'heating', 'centralair', 'garagetype', 'miscfeature',
+     'saletype', 'salecondition'
+]
+    ordinal_mapping = {
+    'lotshape':      ['IR3', 'IR2', 'IR1', 'Reg'],
+    'exterqual':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'extercond':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'bsmtqual':      ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'bsmtcond':      ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'bsmtexposure':  ['None', 'No', 'Mn', 'Av', 'Gd'],
+    'bsmtfintype1':  ['None', 'Unf', 'LwQ', 'Rec', 'BLQ', 'ALQ', 'GLQ'],
+    'bsmtfintype2':  ['None', 'Unf', 'LwQ', 'Rec', 'BLQ', 'ALQ', 'GLQ'],
+    'heatingqc':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'kitchenqual':   ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'functional':    ['Sal', 'Sev', 'Maj2', 'Maj1', 'Mod', 'Min2', 'Min1', 'Typ'],
+    'fireplacequ':   ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'garagefinish':  ['None', 'Unf', 'RFn', 'Fin'],
+    'garagequal':    ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'garagecond':    ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+    'paveddrive':    ['N', 'P', 'Y'],
+    'poolqc':        ['None', 'Fa', 'TA', 'Gd', 'Ex'],
+    'fence':         ['None', 'MnWw', 'GdWo', 'MnPrv', 'GdPrv'],
+    'electrical':    ['Mix', 'FuseP', 'FuseF', 'FuseA', 'SBrkr'],
+}
+
+    def __init__(self):
+        self.numerical_features:list[str] =[]
+        self.categorical_features:list[str] = []
+        self.ordinal_features:list[str] = []
+        self.nominal_features:list[str] = []
+        self._is_fitted:bool = False
+        self.prepipeline:Optional[Pipeline] = None
+        self.feature_selection_pipeline: Optional[Pipeline] = None
+        self._preprocessor: Optional[ColumnTransformer] = None  
+
+
+
+
+    def build_prepipeline(self):
+        prepipeline_steps = [
+            ("type_caster", TypeCaster()),
+            ("domain_imputer", DomainImputer()),
+            ("feature_creator", CreateNewFeatures())
+        ]
+        self.prepipeline = Pipeline(prepipeline_steps)
+        return self.prepipeline
+    
+    def remaining_features(self, X: pd.DataFrame) -> list[str]:
+        self.categorical_features = [feature for feature in X.select_dtypes(exclude=np.number).columns]
+        self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
+        self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
+        self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
