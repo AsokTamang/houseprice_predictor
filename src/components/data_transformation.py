@@ -191,7 +191,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
             0.01  # threshold for identifying constant features based on frequency
         )
 
-    def fit(self, X: pd.DataFrame, y=None):
+    def fit(self, X: pd.DataFrame, y:pd.Series):
         X = X.copy()
         ordinal_categories = {
             "lotshape": ["IR3", "IR2", "IR1", "Reg"],
@@ -271,7 +271,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
             0.75  # threshold for identifying constant features based on correlation with other features
         )
 
-    def fit(self, X: pd.DataFrame, y=None):
+    def fit(self, X: pd.DataFrame, y: pd.Series):
         X = X.copy()
         target = "saleprice"
         imp_num_features = []
@@ -329,10 +329,10 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
 
 
 class MulticollinearityDropper(BaseEstimator, TransformerMixin):
-    def __int__(self):
+    def __init__(self):
         self.cols_to_drop: list[str] = []
         self.target_relation_threshold: float = 0.1
-    def fit(self, X: pd.DataFrame, y=None):
+    def fit(self, X: pd.DataFrame, y: pd.Series):
         X = X.copy()
         target = "saleprice"
         numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature != target]
