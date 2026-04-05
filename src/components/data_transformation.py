@@ -2,6 +2,7 @@ import sys
 import os
 from sklearn.feature_selection import VarianceThreshold, mutual_info_regression
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
+from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
@@ -365,7 +366,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         X = X.drop(columns =[feature for feature in self.cols_to_drop if feature in X.columns] )
         return X
 
-
+#dropping the features which have high multicollinearity with other features and very weak correlation with target variable, because they are the redundant features
 class MulticollinearityDropper(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.cols_to_drop: list[str] = []
@@ -390,7 +391,8 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
         return X
    
-    
+
+#dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test    
 class DropWeakCategorical(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.cols_to_drop: list[str] = []
@@ -455,24 +457,44 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.ordinal_features:list[str] = []
         self.nominal_features:list[str] = []
         self._is_fitted:bool = False
-        self.prepipeline:Optional[Pipeline] = None
+        self.pre_pipeline:Optional[Pipeline] = None
         self.feature_selection_pipeline: Optional[Pipeline] = None
-        self._preprocessor: Optional[ColumnTransformer] = None  
+        self.preprocessor: Optional[ColumnTransformer] = None  
+    
+    #this function is for updating the numerical, categorical, ordinal and nominal features 
+    def remaining_features(self, X: pd.DataFrame) -> list[str]:
+        self.categorical_features = [feature for feature in X.select_dtypes(exclude=np.number).columns]
+        self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
+        self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
+        self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
 
 
-
-
+    #this function is for building the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge, which will be applied before feature selection in the data transformation process
     def build_prepipeline(self):
         prepipeline_steps = [
             ("type_caster", TypeCaster()),
             ("domain_imputer", DomainImputer()),
             ("feature_creator", CreateNewFeatures())
         ]
-        self.prepipeline = Pipeline(prepipeline_steps)
-        return self.prepipeline
+        self.pre_pipeline = Pipeline(prepipeline_steps)
+        return self.pre_pipeline
     
-    def remaining_features(self, X: pd.DataFrame) -> list[str]:
-        self.categorical_features = [feature for feature in X.select_dtypes(exclude=np.number).columns]
-        self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
-        self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
-        self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
+    def build_feature_selection_pipeline(self):
+        feature_selection_steps = [
+            ("drop_constant_numerical", DropConstantNumerical()),
+            ("drop_constant_categorical", DropConstantCategorical()),
+            ("numeric_feature_selection", NumericFeatureSelection()),
+            ("multicollinearity_dropper", MulticollinearityDropper()), 
+            ("drop_weak_categorical", DropWeakCategorical())
+        ]
+        self.feature_selection_pipeline = Pipeline(feature_selection_steps)
+        return self.feature_selection_pipeline
+
+    def numerical_pipeline(self):
+        numerical_pipeline = Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),  
+            ("scaler", StandardScaler())
+        ])
+        return numerical_pipeline
+
+    
