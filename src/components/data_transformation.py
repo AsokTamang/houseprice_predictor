@@ -104,8 +104,55 @@ class DropConstantNumerical(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = X.copy()
         logging.info(f"DropConstantNumerical: Dropping constant numerical features {self.cols_to_drop} as their variance is below the threshold of {self.threshold}.")
-        X = X.drop(columns=self.cols_to_drop)  #dropping the constant numerical features from the data
+        X = X.drop(columns=[col for col in self.cols_to_drop if col in X.columns])  #dropping the constant numerical features from the data
         return X
         
 
+#class for dropping the constant categorical features from the data based on the mutual information with the target variable
+class DropConstantCategorical(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.cols_to_drop:list[str] = []  #store the list of constant categorical features which will be identified during fitting and dropped during transformation
+        self.mi_threshold:float = 0.01  #threshold for identifying constant features based on frequency
+    def fit(self, X:pd.DataFrame, y=None):
+        X = X.copy()
+        ordinal_categories = {
+        'lotshape':      ['IR3', 'IR2', 'IR1', 'Reg'],
+        'exterqual':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'extercond':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'bsmtqual':      ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'bsmtcond':      ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'bsmtexposure':  ['None', 'No', 'Mn', 'Av', 'Gd'],
+        'bsmtfintype1':  ['None', 'Unf', 'LwQ', 'Rec', 'BLQ', 'ALQ', 'GLQ'],
+        'bsmtfintype2':  ['None', 'Unf', 'LwQ', 'Rec', 'BLQ', 'ALQ', 'GLQ'],
+        'heatingqc':     ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'kitchenqual':   ['Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'functional':    ['Sal', 'Sev', 'Maj2', 'Maj1', 'Mod', 'Min2', 'Min1', 'Typ'],
+        'fireplacequ':   ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'garagefinish':  ['None', 'Unf', 'RFn', 'Fin'],
+        'garagequal':    ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'garagecond':    ['None', 'Po', 'Fa', 'TA', 'Gd', 'Ex'],
+        'paveddrive':    ['N', 'P', 'Y'],
+        'poolqc':        ['None', 'Fa', 'TA', 'Gd', 'Ex'],
+        'fence':         ['None', 'MnWw', 'GdWo', 'MnPrv', 'GdPrv'],
+        'electrical':    ['Mix', 'FuseP', 'FuseF', 'FuseA', 'SBrkr']}
+        categorical = [feature for feature in X.select_dtypes(include='object').columns if feature!='saleprice']
 
+    
+        quasi_constant_cat_features = [feature for feature in categorical if df[feature].value_counts(normalize=True).iloc[0]>0.95]  #if the most frequently occuring category of this current feature is seen in almost 99% of training data, then this feature is considered as constant categorical feature 
+        mi_storage = {}
+        #instead of directly dropping the near constant categorical features, we must check the statistical relation of these near constant features with the target variable then only we drop those features which has very weak relation with target variable
+        for feature in quasi_constant_cat_features:
+            if feature in ordinal_categories:
+                mapping = {k:i for i,k in enumerate(ordinal_categories[feature])} #creating the dictionary which shows the category as key and its corresponding index as value, here index represents the position of the category in the given order of current nominal categorical feature
+                x = df[feature].map(mapping).to_frame(name=feature)   
+            else:
+                x = df[feature].astype('category').cat.codes.to_frame(name=feature)   #converting the current categorical features value into cat codes, which is done only for nominal categorical features
+            mi = mutual_info_regression(x,y.loc[x.index])  #calculating the statistical relationship between categories and the target variable, and here we are using .loc[x.index] for matching the corresponding training data and output variable
+            mi_storage[feature] = mi[0]  #storing the feature as key and the mi value as the value in the dict
+        self.cols_to_drop = [feature for feature,mi_value in mi_storage.items() if mi_value<self.mi_threshold]  #we drop those categorical features that have very low statistical relationship with the target variables
+        return self
+    def transform(self, X):
+        X = X.copy()
+        logging.info(f"DropConstantCategorical: Dropping constant categorical features {self.cols_to_drop} as their maximum category frequency is above the threshold of {self.threshold}.")
+        X = X.drop(columns=[col for col in self.cols_to_drop if col in X.columns])  #dropping the constant categorical features from the data
+        return X
