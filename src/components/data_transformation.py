@@ -518,3 +518,16 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         ])
         return self.preprocessor
    
+    def fit_transform(self, X: pd.DataFrame, y: pd.Series):
+        
+        self.build_prepipeline()
+        self.build_feature_selection_pipeline()
+        self.build_preprocessor()
+        X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
+        self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
+        X_selected = self.feature_selection_pipeline.fit_transform(X_preprocessed, y) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
+        self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
+        X_encoded = self.preprocessor.fit_transform(X_selected)
+        self._is_fitted = True
+        return X_encoded
+    def transform(self, X: pd.DataFrame):
