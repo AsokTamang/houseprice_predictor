@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from scipy import stats
 
 
 @dataclass
@@ -353,4 +354,28 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         return X
    
     
-   
+class DropWeakCategorical(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.cols_to_drop: list[str] = []
+    def fit(self, X: pd.DataFrame, y: pd.Series):
+        target = "saleprice"
+        categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature != target]
+        anova_report = []
+        for feature in categorical:
+            groups = [y.loc[group.index].values for _,group in X.groupby(feature)]  #extracting the values of the saleprice based on different categories of current feature, based on the index of the category
+            f_stats,p_value = stats.f_oneway(*groups)  #anova test of different saleprice values based on each categories of current feature
+            anova_report.append({
+                'feature':feature,
+                'f_stats':f_stats,
+                'p_value':p_value
+            })
+        total_result_cat = pd.DataFrame(anova_report).sort_values('p_value')
+        self.cols_to_drop= total_result_cat[(total_result_cat['p_value']>0.05) | (total_result_cat['p_value'].isna())]['feature'].tolist()
+        return self
+    def transform(self, X):
+        X = X.copy()
+        logging.info(
+            f"DropWeakCategorical: Dropping features {self.cols_to_drop} due to weak statistical relationship with target variable based on ANOVA test."
+        )
+        X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
+        return X
