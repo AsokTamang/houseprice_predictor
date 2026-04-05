@@ -10,6 +10,7 @@ from src.logger import logging
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 
 @dataclass
@@ -270,7 +271,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
             0.75  # threshold for identifying constant features based on correlation with other features
         )
 
-    def fit(self, X: pd.DataFrame, y: pd.Series):
+    def fit(self, X: pd.DataFrame, y=None):
         X = X.copy()
         target = "saleprice"
         imp_num_features = []
@@ -325,3 +326,31 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         )
         X = X.drop(columns =[feature for feature in self.cols_to_drop if feature in X.columns] )
         return X
+
+
+class MulticollinearityDropper(BaseEstimator, TransformerMixin):
+    def __int__(self):
+        self.cols_to_drop: list[str] = []
+        self.target_relation_threshold: float = 0.1
+    def fit(self, X: pd.DataFrame, y=None):
+        X = X.copy()
+        target = "saleprice"
+        numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature != target]
+        variables = X[numerical].dropna()  #we must drop the null values before checking the variance inflation factor
+        vif = pd.DataFrame({
+            'features':variables.columns,
+            'vif_value':[variance_inflation_factor(variables.values,i) for i in range(variables.shape[1])],
+            'corr_with_target':X[numerical].corrwith(y.loc[X.index])  #finding the correlation with the target variable based on their corresponding target 'y'
+        }).sort_values('vif_value',ascending=False)
+        self.cols_to_drop = vif[(vif['vif_value'] > 10) & (abs(vif['corr_with_target'])<self.target_relation_threshold)]['features'].tolist()  #those features which have higher vif value than 10 and very low correlation value of less than 0.1 with the target variable, we drop them 
+        return self
+    def transform(self, X):
+        X = X.copy()
+        logging.info(
+            f"MulticollinearityDropper: Dropping features {self.cols_to_drop} due to high multicollinearity with other features and low correlation with target variable."
+        )
+        X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
+        return X
+   
+    
+   
