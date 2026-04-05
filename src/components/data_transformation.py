@@ -86,28 +86,26 @@ class DomainImputer(BaseEstimator, TransformerMixin):
         
 
 
-
+#class for dropping the constant numerical features from the data based on the variance threshold
 class DropConstantNumerical(BaseEstimator, TransformerMixin):
     def __init__(self):
-        self.variance_threshold:float = 0.01  #threshold for variance below which the feature will be dropped
-
+        self.cols_to_drop:list[str] = []  #store the list of constant numerical features which will be identified during fitting and dropped during transformation
+        self.threshold:float = 0.01  #threshold for identifying constant features based on variance
     def fit(self, X:pd.DataFrame, y=None):
         X = X.copy()
         target = 'saleprice'
         numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature!=target]
-        categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature!=target]
-        vt = VarianceThreshold(0.01)
-        vt.fit(df[numerical])  #checking the constant features of numerical features based on threshold 0.01
+        vt = VarianceThreshold(self.threshold)
+        vt.fit(X[numerical])  #checking the constant features of numerical features based on threshold 0.01
         variance_result = vt.get_support()  #getting the result of checking the passed data with the threshold
-        constant_num_features = [col for col,s in zip(df[numerical],variance_result) if not s]  #storing those numerical features whose variance is below 0.01
-        df = df.drop(columns = constant_num_features)
-        return df
+        self.cols_to_drop= [col for col,s in zip(X[numerical],variance_result) if not s]  #storing those numerical features whose variance is below 0.01, which means those features are constant and do not have any importance in the prediction of the target variable, in a list which will be used later for dropping those features from the data
+        return self
 
     def transform(self, X):
-        if not self._is_fitted:
-            raise RuntimeError("Pipeline not fitted yet.")
         X = X.copy()
-        #dropping the 'id' column as it is not useful for prediction and it is just an identifier for each row
-        if 'id' in X.columns:
-            logging.info("DataCleaning: Dropping 'id' column as it is not useful for prediction.")
-            X = X.drop('id', axis=1)
+        logging.info(f"DropConstantNumerical: Dropping constant numerical features {self.cols_to_drop} as their variance is below the threshold of {self.threshold}.")
+        X = X.drop(columns=self.cols_to_drop)  #dropping the constant numerical features from the data
+        return X
+        
+
+
