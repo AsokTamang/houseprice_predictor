@@ -497,4 +497,24 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         ])
         return numerical_pipeline
 
+    def ordinal_pipeline(self):
+        ordinal_pipeline = Pipeline([
+            ("imputer", SimpleImputer(strategy="constant", fill_value="None")),  
+            ("ordinal_encoder", OrdinalEncoder(categories=[self.ordinal_mapping[feature] for feature in self.ordinal_features]))
+        ])
+        return ordinal_pipeline
     
+    def nominal_pipeline(self):
+        nominal_pipeline = Pipeline([
+            ("imputer", SimpleImputer(strategy="cosntant", fill_value="None")),  
+            ("onehot_encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
+        ])
+        return nominal_pipeline
+    def build_preprocessor(self):
+        self.preprocessor = ColumnTransformer([
+            ("numerical_pipeline", self.numerical_pipeline(), self.numerical_features),
+            ("ordinal_pipeline", self.ordinal_pipeline(), self.ordinal_features),
+            ("nominal_pipeline", self.nominal_pipeline(), self.nominal_features)
+        ])
+        return self.preprocessor
+   
