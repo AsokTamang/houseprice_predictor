@@ -2,7 +2,7 @@ import os
 import sys
 import dill
 from src.logger import logging
-from src.exception import CustomException
+from src.exception import CustomError
 
 
 def save_object(file_path, obj):    
@@ -12,4 +12,4 @@ def save_object(file_path, obj):
         with open(file_path, 'wb') as file_obj:
             dill.dump(obj, file_obj)  # Use dill to serialize the object
     except Exception as e:
-        raise CustomException(e, sys)
+        raise CustomError(e, sys)

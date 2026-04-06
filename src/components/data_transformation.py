@@ -35,7 +35,8 @@ class DataTransformationConfig:
 # class for changing the data type of the features based on the domain knowledge
 class TypeCaster(BaseEstimator, TransformerMixin):
     def __init__(self):
-        self.int_to_str_features: list[str] = ["MSSubClass", "OverallCond"]
+        self.int_to_str_features: list[str] = ["mssubclass", "overallcond"]
+        self._is_fitted=False
 
     def fit(self, X: pd.DataFrame, y=None):
         self._is_fitted = True
@@ -84,7 +85,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
 
     # this function is for learning the parameters quired for imputation from the training data and storing those parameters in the instance variables of the class which will be used later for imputation in both training and test data
     def fit(self, X: pd.DataFrame, y=None):
-        if "LotFrontage" in X.columns and "neighborhood" in X.columns:
+        if "lotfrontage" in X.columns and "neighborhood" in X.columns:
             for neighborhood in X["neighborhood"].unique():  #looping through each unique data in the neighbourhood column
                 median_value = X.loc[
                     X["neighborhood"] == neighborhood, "lotFrontage"
@@ -124,12 +125,12 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 X[feature] = X[feature].fillna(
                     0
                 )  # filling the missing values with 0 for the features in zero_features list
-            elif feature == "lotFrontage":
+            elif feature == "lotfrontage":
                 logging.info(
                     f"DomainImputer: Filling missing values of 'LotFrontage' based on the median value for each neighborhood."
                 )
                 for neighborhood, median_value in self.lot_frontage_median.items():
-                    if neighborhood in X["neighborhood"].unique():
+                    if neighborhood in X["neighborhood"].unique():  #if the stored neighbourhood category is present in the passed data neighbourhood column, then only we use the corresponding median value of lotfrontage
                         X.loc[X["neighborhood"] == neighborhood, "lotFrontage"] = X.loc[
                             X["neighborhood"] == neighborhood, "lotFrontage"
                         ].fillna(
@@ -208,6 +209,7 @@ class DropConstantNumerical(BaseEstimator, TransformerMixin):
             for feature in X.select_dtypes(include=np.number).columns
             if feature != target
         ]
+        X[numerical] = X[numerical].fillna(X[numerical].median())  #filling the null values of numerical features with median before checking the variance threshold, because if there are null values in the data, then the variance threshold will not work properly
         vt = VarianceThreshold(self.threshold)
         vt.fit(
             X[numerical]
@@ -469,8 +471,8 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.ordinal_features:list[str] = []
         self.nominal_features:list[str] = []
         self._is_fitted:bool = False
-        self.pre_pipeline:Optional[Pipeline] = None
-        self.feature_selection_pipeline: Optional[Pipeline] = None
+        self.pre_pipeline:Optional[Pipeline] = None  
+        self.feature_selection_pipeline: Optional[Pipeline] = None #22222
         self.preprocessor: Optional[ColumnTransformer] = None  
     
     #this function is for updating the numerical, categorical, ordinal and nominal features 
@@ -533,9 +535,9 @@ class DataTransformer(BaseEstimator, TransformerMixin):
     def fit_transform(self, X: pd.DataFrame, y: pd.Series):  #for fitting and transforming the training data
         if 'id' in X.columns:
             X = X.drop(columns=['id'])  #dropping the 'id' column as it doesn't have any importance in the prediction of target variable and it is just a unique identifier for each row in the data
-        self.build_prepipeline()
-        self.build_feature_selection_pipeline()
-        
+        self.build_prepipeline() 
+        self.build_feature_selection_pipeline() #2222
+        X.columns = X.columns.str.lower()
         X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         save_object(self.config.prepipeline_obj_file_path, self.pre_pipeline)  
         self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
@@ -566,11 +568,16 @@ class DataTransformer(BaseEstimator, TransformerMixin):
 
 
 if __name__ == "__main__":
-    df_train = pd.read_csv(os.path.join('root_data','train_data.csv'))
-    df_test = pd.read_csv(os.path.join('root_data','test_data.csv'))
-    dt = DataTransformer()
-    X_train_encoded, y_train_logged = dt.fit_transform(df_train.drop(columns=['saleprice']), df_train['saleprice'])
-    X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
-    logging.info('Data transformation completed successfully for both training and test data')
-    print('first five tranformed training data: \n', X_train_encoded[:5])
-    print('first five transformed test data: \n', X_test_encoded[:5])
+    try:
+        df_train = pd.read_csv(os.path.join('root_data','train_data.csv'))
+        df_test = pd.read_csv(os.path.join('root_data','test_data.csv'))
+        dt = DataTransformer()
+        df_train.columns = df_train.columns.str.lower()
+        df_test.columns = df_test.columns.str.lower()
+        X_train_encoded, y_train_logged = dt.fit_transform(df_train, df_train['saleprice'])
+        X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
+        logging.info('Data transformation completed successfully for both training and test data')
+        print('first five tranformed training data: \n', X_train_encoded[:5])
+        print('first five transformed test data: \n', X_test_encoded[:5])
+    except Exception as e:
+        raise CustomError(e, sys)    
