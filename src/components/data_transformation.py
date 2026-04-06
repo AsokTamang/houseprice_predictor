@@ -68,7 +68,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
         self.zero_features = ["masvnrarea", "garageyrblt"]
         self.lot_frontage_median: dict[str, float] = (
             {}
-        )  # store the median values of 'LotFrontage' for each 'Neighborhood'
+        )  # store the median values of 'LotFrontage' based on 'Neighborhood'
         self.electrical_mode: str = ""  # store the mode value of 'Electrical' column
         self.global_lot_frontage_median: float = (
             0.0  # store the global median value of 'LotFrontage' in case there are neighborhoods in test data which are not present in training data
@@ -77,7 +77,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
     # this function is for learning the parameters quired for imputation from the training data and storing those parameters in the instance variables of the class which will be used later for imputation in both training and test data
     def fit(self, X: pd.DataFrame, y=None):
         if "LotFrontage" in X.columns and "neighborhood" in X.columns:
-            for neighborhood in X["neighborhood"].unique():
+            for neighborhood in X["neighborhood"].unique():  #looping through each unique data in the neighbourhood column
                 median_value = X.loc[
                     X["neighborhood"] == neighborhood, "lotFrontage"
                 ].median()  # extracting the median value of 'LotFrontage' for each 'Neighborhood'
@@ -87,7 +87,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 self.lot_frontage_median[neighborhood] = (
                     median_value  # storing the median values in a dictionary with neighborhood as key and median value as value
                 )
-                self.global_lot_frontage_median = np.mean(
+            self.global_lot_frontage_median = np.mean(
                     list(self.lot_frontage_median.values())
                 )  # calculating the global median value of 'LotFrontage' by taking the mean of all the neighborhood median values
         if "electrical" in X.columns:
@@ -157,12 +157,15 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
             'has_2nd_floor': '2nXlrsf',
             'has_masonry': 'masvnrarea'
         }
+        #creation of age features
         if all(c in X.columns for c in ['yearbuilt','yrsold']):
          X['house_age'] = X['yrsold'] - X['yearbuilt']  #creating the age of house
         if all(c in X.columns for c in ['garageyrblt','yrsold']): 
          X['garage_age'] = np.where(X['garageyrblt']!=0,X['yrsold'] - X['garageyrblt'],-1) #creating garage_age, if the garageyrblt is 0, then it means the house didn't had any garage, so we are filling garage age wth -1 in such case
         if all(c in X.columns for c in ['yearremodadd','yrsold']):
          X['remodeled_age'] = X['yrsold'] - X['yearremodadd'] #calculating the age of house since it was remodeled
+        
+        #creation of has features, showing whether the house has that feature or not
         for new_feature, original_feature in binary_features.items():
             if original_feature in X.columns:
                 X[new_feature] = (X[original_feature] > 0).astype(int) 
@@ -286,7 +289,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
             feature
             for feature, mi_value in mi_storage.items()
             if mi_value < self.mi_threshold
-        ]  # we drop those categorical features that have very low statistical relationship with the target variables
+        ]  # we drop those nearly constant categorical features that have very low statistical relationship with the target variables
         return self
 
     def transform(self, X):
@@ -323,8 +326,8 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
             corr = X[feature].corr(
                 y.loc[X.index]
             )  # finding the correlation of all the numeric features with the target variable
-        if abs(corr) > self.corr_target_threshold:
-            imp_num_features.append(feature)
+            if abs(corr) > self.corr_target_threshold:
+                 imp_num_features.append(feature)
         imp_corr_matrix = X[
             imp_num_features
         ].corr()  # finding the correlation of each important numerical features with eachother
@@ -340,7 +343,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
                     and abs(r) > self.corr_feature_threshold
                     and ci != target
                     and cj != target
-                ):  # if the correlation value between this pair is high, then we remove that feature which has weaker correlation with the target variable
+                ):  # if the correlation value between this pair is high, then we remove that feature which has weaker correlation with the target variable, between two of them
                     corr_i_target = X[ci].corr(
                         y.loc[X.index]
                     )  # finding the correlation of the ith index feature with the target variable
@@ -467,7 +470,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
         self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
         self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
-
+        logging.info('updated the numerical, categorical, ordinal and nominal features based on the changes in the data')
 
     #this function is for building the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge, which will be applied before feature selection in the data transformation process
     def build_prepipeline(self):
