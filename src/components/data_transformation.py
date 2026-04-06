@@ -14,10 +14,18 @@ import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from scipy import stats
 from typing import Optional
+from src.utils import save_object
 
+ 
 
 @dataclass
 class DataTransformationConfig:
+    prepipeline_obj_file_path: str = os.path.join(
+        "artifacts", "prepipeline.pkl"
+    )
+    feature_selection_obj_file_path: str = os.path.join(
+        "artifacts", "feature_selection.pkl"
+    )
     preprocessor_obj_file_path: str = os.path.join(
         "artifacts", "preprocessor.pkl"
     )  # location where the preprocessor object will be stored after transformation
@@ -455,6 +463,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
 }
 
     def __init__(self):
+        self.config = DataTransformationConfig()
         self.numerical_features:list[str] =[]
         self.categorical_features:list[str] = []
         self.ordinal_features:list[str] = []
@@ -528,18 +537,40 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.build_feature_selection_pipeline()
         
         X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
+        save_object(self.config.prepipeline_obj_file_path, self.pre_pipeline)  
         self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
+        
         X_selected = self.feature_selection_pipeline.fit_transform(X_preprocessed, y) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
+        save_object(self.config.feature_selection_obj_file_path, self.feature_selection_pipeline)
         self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
+        
         self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
         X_encoded = self.preprocessor.fit_transform(X_selected)
+        save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
+        self.remaining_features(X_encoded)
+          
+        
         logged_y = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
         self._is_fitted = True
         return X_encoded, logged_y
     def transform(self, X: pd.DataFrame):  #for transforming the test data based on the parameters learned from the training data
         if not self._is_fitted:
             raise RuntimeError("DataTransformer not fitted yet.")
+        if 'id' in X.columns:
+            X = X.drop(columns=['id'])  
         X_preprocessed = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         X_selected = self.feature_selection_pipeline.transform(X_preprocessed) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
         X_encoded = self.preprocessor.transform(X_selected)
         return X_encoded
+    
+
+
+if __name__ == "__main__":
+    df_train = pd.read_csv(os.path.join('root_data','train_data.csv'))
+    df_test = pd.read_csv(os.path.join('root_data','test_data.csv'))
+    dt = DataTransformer()
+    X_train_encoded, y_train_logged = dt.fit_transform(df_train.drop(columns=['saleprice']), df_train['saleprice'])
+    X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
+    logging.info('Data transformation completed successfully for both training and test data')
+    print('first five tranformed training data: \n', X_train_encoded[:5])
+    print('first five transformed test data: \n', X_test_encoded[:5])
