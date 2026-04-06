@@ -36,15 +36,11 @@ class DataTransformationConfig:
 class TypeCaster(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.int_to_str_features: list[str] = ["mssubclass", "overallcond"]
-        self._is_fitted=False
 
     def fit(self, X: pd.DataFrame, y=None):
-        self._is_fitted = True
         return self
 
     def transform(self, X):
-        if not self._is_fitted:
-            raise RuntimeError("Pipeline not fitted yet.")
         X = X.copy()
         for feature in X.columns:
             if feature in self.int_to_str_features:
@@ -88,7 +84,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
         if "lotfrontage" in X.columns and "neighborhood" in X.columns:
             for neighborhood in X["neighborhood"].unique():  #looping through each unique data in the neighbourhood column
                 median_value = X.loc[
-                    X["neighborhood"] == neighborhood, "lotFrontage"
+                    X["neighborhood"] == neighborhood, "lotfrontage"
                 ].median()  # extracting the median value of 'LotFrontage' for each 'Neighborhood'
                 logging.info(
                     f"DomainImputer: Calculated median value of 'LotFrontage' for neighborhood '{neighborhood}' is {median_value}."
@@ -131,8 +127,8 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 )
                 for neighborhood, median_value in self.lot_frontage_median.items():
                     if neighborhood in X["neighborhood"].unique():  #if the stored neighbourhood category is present in the passed data neighbourhood column, then only we use the corresponding median value of lotfrontage
-                        X.loc[X["neighborhood"] == neighborhood, "lotFrontage"] = X.loc[
-                            X["neighborhood"] == neighborhood, "lotFrontage"
+                        X.loc[X["neighborhood"] == neighborhood, "lotfrontage"] = X.loc[
+                            X["neighborhood"] == neighborhood, "lotfrontage"
                         ].fillna(
                             median_value
                         )  # filling the missing values of 'LotFrontage' with the corresponding median value based on the neighborhood
@@ -140,7 +136,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                         logging.info(
                             f"DomainImputer: Neighborhood '{neighborhood}' not found in the data. Filling missing values of 'LotFrontage' with global median value {self.global_lot_frontage_median}."
                         )
-                        X["lotFrontage"] = X["lotFrontage"].fillna(
+                        X["lotfrontage"] = X["lotfrontage"].fillna(
                             self.global_lot_frontage_median
                         )  # filling the missing values of 'LotFrontage' with global median value in case there are neighborhoods in test data which are not present in training data
             elif feature == "electrical":
@@ -150,7 +146,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 X[feature] = X[feature].fillna(
                     self.electrical_mode
                 )  # filling the missing values of 'Electrical' column with the mode value
-            return X
+        return X
 
 class CreateNewFeatures(BaseEstimator, TransformerMixin):
     def __init__(self):
@@ -163,7 +159,7 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
             'has_garage': 'garagearea',
             'has_fireplace': 'fireplaces',
             'has_basement': 'totalbsmtsf',
-            'has_2nd_floor': '2nXlrsf',
+            'has_2nd_floor': '2ndflrsf',
             'has_masonry': 'masvnrarea'
         }
         #creation of age features
@@ -305,7 +301,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = X.copy()
         logging.info(
-            f"DropConstantCategorical: Dropping constant categorical features {self.cols_to_drop} as their maximum category frequency is above the threshold of {self.threshold}."
+            f"DropConstantCategorical: Dropping constant categorical features {self.cols_to_drop} as their maximum category frequency is above the threshold of {self.mi_threshold}."
         )
         X = X.drop(
             columns=[col for col in self.cols_to_drop if col in X.columns]
@@ -389,10 +385,11 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         target = "saleprice"
         numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature != target]
         variables = X[numerical].dropna()  #we must drop the null values before checking the variance inflation factor
+        y = y.loc[variables.index]  #matching the corresponding target variable values with the non null values of numerical features
         vif = pd.DataFrame({
             'features':variables.columns,
             'vif_value':[variance_inflation_factor(variables.values,i) for i in range(variables.shape[1])],
-            'corr_with_target':X[numerical].corrwith(y.loc[X.index])  #finding the correlation with the target variable based on their corresponding target 'y'
+            'corr_with_target':variables.corrwith(y)  #finding the correlation with the target variable based on their corresponding target 'y'
         }).sort_values('vif_value',ascending=False)
         self.cols_to_drop = vif[(vif['vif_value'] > 10) & (abs(vif['corr_with_target'])<self.target_relation_threshold)]['features'].tolist()  #those features which have higher vif value than 10 and very low correlation value of less than 0.1 with the target variable, we drop them 
         return self
@@ -482,6 +479,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
         self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
         logging.info('updated the numerical, categorical, ordinal and nominal features based on the changes in the data')
+        return self
 
     #this function is for building the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge, which will be applied before feature selection in the data transformation process
     def build_prepipeline(self):
@@ -514,13 +512,13 @@ class DataTransformer(BaseEstimator, TransformerMixin):
     def ordinal_pipeline(self):
         ordinal_pipeline = Pipeline([
             ("imputer", SimpleImputer(strategy="constant", fill_value="None")),  
-            ("ordinal_encoder", OrdinalEncoder(categories=[self.ordinal_mapping[feature] for feature in self.ordinal_features]))
+            ("ordinal_encoder", OrdinalEncoder(categories=[self.ordinal_mapping[feature] for feature in self.ordinal_features], handle_unknown="use_encoded_value", unknown_value=-1))
         ])
         return ordinal_pipeline
     
     def nominal_pipeline(self):
         nominal_pipeline = Pipeline([
-            ("imputer", SimpleImputer(strategy="cosntant", fill_value="None")),  
+            ("imputer", SimpleImputer(strategy="constant", fill_value="None")),  
             ("onehot_encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
         ])
         return nominal_pipeline
@@ -532,30 +530,28 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         ])
         return self.preprocessor
    
-    def fit_transform(self, X: pd.DataFrame, y: pd.Series):  #for fitting and transforming the training data
+    def fit(self, X: pd.DataFrame, y: pd.Series):  #for fitting and transforming the training data
         if 'id' in X.columns:
             X = X.drop(columns=['id'])  #dropping the 'id' column as it doesn't have any importance in the prediction of target variable and it is just a unique identifier for each row in the data
-        self.build_prepipeline() 
-        self.build_feature_selection_pipeline() #2222
-        X.columns = X.columns.str.lower()
+        y = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
+        self.build_prepipeline()   #built the prepipeline
+        self.build_feature_selection_pipeline()   #built the feature selection pipeline
+        #AFTER EVERY TRAINING OF PIPELINE , WE UPDATE THE NUMERICAL,CATEGORICAL FEATURES AND SAVE THE TRAINED PIPELINE OBJECT
         X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         save_object(self.config.prepipeline_obj_file_path, self.pre_pipeline)  
-        self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
+        self.remaining_features(X_preprocessed)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
         
         X_selected = self.feature_selection_pipeline.fit_transform(X_preprocessed, y) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
         save_object(self.config.feature_selection_obj_file_path, self.feature_selection_pipeline)
-        self.remaining_features(X)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
+        self.remaining_features(X_selected)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
         
         self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
-        X_encoded = self.preprocessor.fit_transform(X_selected)
+        self.preprocessor.fit_transform(X_selected)
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
-        self.remaining_features(X_encoded)
-          
-        
-        logged_y = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
+  
         self._is_fitted = True
-        return X_encoded, logged_y
-    def transform(self, X: pd.DataFrame):  #for transforming the test data based on the parameters learned from the training data
+        return self
+    def transform(self, X: pd.DataFrame,y:Optional[pd.Series]=None):  #for transforming the test data based on the parameters learned from the training data
         if not self._is_fitted:
             raise RuntimeError("DataTransformer not fitted yet.")
         if 'id' in X.columns:
@@ -563,6 +559,9 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         X_preprocessed = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         X_selected = self.feature_selection_pipeline.transform(X_preprocessed) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
         X_encoded = self.preprocessor.transform(X_selected)
+        if y is not None:
+            y_logged = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
+            return X_encoded, y_logged
         return X_encoded
     
 
@@ -574,10 +573,14 @@ if __name__ == "__main__":
         dt = DataTransformer()
         df_train.columns = df_train.columns.str.lower()
         df_test.columns = df_test.columns.str.lower()
-        X_train_encoded, y_train_logged = dt.fit_transform(df_train, df_train['saleprice'])
+        X_train = df_train.drop(columns=['saleprice'])
+        y_train = df_train['saleprice']
+        dt.fit(X_train, y_train)  #fitting the data transformer on the training data to learn the parameters required for transformation and feature selection
+        X_train_encoded, y_train_logged = dt.transform(X_train, y_train)
         X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
         logging.info('Data transformation completed successfully for both training and test data')
         print('first five tranformed training data: \n', X_train_encoded[:5])
         print('first five transformed test data: \n', X_test_encoded[:5])
     except Exception as e:
+        logging.info(f"Error in data transformation: {e}")
         raise CustomError(e, sys)    
