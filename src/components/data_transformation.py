@@ -576,7 +576,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         X_encoded = self.preprocessor.transform(X)
         if y is not None:
             y_logged = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
-            return X_encoded, y_logged
+            return np.c_[X_encoded, y_logged]  #combining the transformed features and target variable and returning them together
         return X_encoded
     
 

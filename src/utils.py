@@ -3,7 +3,8 @@ import sys
 import dill
 from src.logger import logging
 from src.exception import CustomError
-
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import r2_score
 
 def save_object(file_path, obj):    
     try:
@@ -13,3 +14,25 @@ def save_object(file_path, obj):
             dill.dump(obj, file_obj)  # Use dill to serialize the object
     except Exception as e:
         raise CustomError(e, sys)
+    
+
+def model_evaluation(X_train, y_train, X_test, models, params):
+    try:
+        score_report = {}
+        trained_models = {}
+        for model_name, model in models.items():
+            param = params[model_name]
+            gs = GridSearchCV(model, param, cv=5)
+            gs.fit(X_train, y_train)  #training the model on training data with different hyperparameters and finding the best hyperparameters based on cross validation score
+            best_model = gs.best_estimator_  #finding the best model based on the best hyperparameters found by grid search
+            trained_models[model_name] = best_model  #finding the score of the best model on the cross_validation data
+            cv_score = gs.best_score_
+            score_report[model_name] = cv_score
+           
+        best_model_name = max(score_report, key=score_report.get)
+        best_model = trained_models[best_model_name]
+        test_predictions = best_model.predict(X_test)  #predicting the target variable on the test data using the best model found by grid search
+        best_model_score = score_report[best_model_name]
+        return best_model, best_model_score,test_predictions
+    except Exception as e:
+        raise CustomError(e, sys)    
