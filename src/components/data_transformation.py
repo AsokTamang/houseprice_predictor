@@ -14,7 +14,7 @@ import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from scipy import stats
 from typing import Optional
-from src.utils import save_object
+from src.utils import save_object, load_object
 
  
 
@@ -38,9 +38,11 @@ class DataTransformationConfig:
 # class for changing the data type of the features based on the domain knowledge
 class TypeCaster(BaseEstimator, TransformerMixin):
     def __init__(self):
+       
         self.int_to_str_features: list[str] = ["mssubclass", "overallcond"]
 
     def fit(self, X: pd.DataFrame, y=None):
+        self.is_fitted_ = True
         return self
 
     def transform(self, X):
@@ -84,6 +86,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
 
     # this function is for learning the parameters quired for imputation from the training data and storing those parameters in the instance variables of the class which will be used later for imputation in both training and test data
     def fit(self, X: pd.DataFrame, y=None):
+        self.is_fitted_ = True
         if "lotfrontage" in X.columns and "neighborhood" in X.columns:
             for neighborhood in X["neighborhood"].unique():  #looping through each unique data in the neighbourhood column
                 median_value = X.loc[
@@ -155,6 +158,7 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.date_features = ['yearbuilt','yrsold','garageyrblt','yearremodadd']
     def fit(self, X: pd.DataFrame, y=None):
+        self.is_fitted_ = True
         return self
     def transform(self, X):
         X = X.copy()
@@ -202,6 +206,7 @@ class DropConstantNumerical(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: pd.DataFrame, y=None):
+        self.is_fitted_ = True
         X = X.copy()
         target = "saleprice"
         numerical = [
@@ -244,6 +249,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: pd.DataFrame, y:pd.Series):
+        self.is_fitted_ = True
         X = X.copy()
         ordinal_categories = {
             "lotshape": ["IR3", "IR2", "IR1", "Reg"],
@@ -324,6 +330,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        self.is_fitted_ = True
         X = X.copy()
         target = "saleprice"
         imp_num_features = []
@@ -395,6 +402,7 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         self.cols_to_drop: list[str] = []
         self.target_relation_threshold: float = 0.1
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        self.is_fitted_ = True
         X = X.copy()
         target = "saleprice"
         numerical = [feature for feature in X.select_dtypes(include=np.number).columns if feature != target]
@@ -421,6 +429,7 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.cols_to_drop: list[str] = []
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        self.is_fitted_ = True
         target = "saleprice"
         categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature != target]
         anova_report = []
@@ -603,8 +612,6 @@ if __name__ == "__main__":
         X_train_encoded, y_train_logged = dt.transform(X_train, y_train)
         X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
         logging.info('Data transformation completed successfully for both training and test data')
-        print('first five tranformed training data: \n', X_train_encoded[:5])
-        print('first five transformed test data: \n', X_test_encoded[:5])
     except Exception as e:
         logging.info(f"Error in data transformation: {e}")
         raise CustomError(e, sys)    
