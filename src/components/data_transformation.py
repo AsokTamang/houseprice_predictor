@@ -340,8 +340,12 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         imp_corr_matrix = X[
             imp_num_features
         ].corr()  # finding the correlation of each important numerical features with eachother
+        
+        removed_cols = set()
         for i in range(len(imp_corr_matrix.columns)):
             for j in range(i):
+                if ci in removed_cols or cj in removed_cols:
+                    continue  # if any of the two features is already removed, then we skip the correlation check for that pair of features
                 r = imp_corr_matrix.iloc[
                     i, j
                 ]  # extracting the correlation value between ith and jth features
@@ -359,15 +363,17 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
                     corr_j_target = X[cj].corr(
                         y.loc[X.index]
                     )  # finding the correlation of the jth index feature with the target variable
-                    if ci in imp_num_features and abs(corr_i_target) < abs(
+                    if abs(corr_i_target) < abs(
                         corr_j_target
                     ):
-                        imp_num_features.remove(
+                        removed_cols.add(
                             ci
                         )  # removing the weaker feature or the feature which has weaker correlation with the target variable
-                    elif cj in imp_num_features:
-                        imp_num_features.remove(cj)
-        self.cols_to_drop = [feature for feature in numerical if feature not in imp_num_features]  # storing the list of numerical features which are not important for the prediction of target variable and can be dropped from the data
+                    else:
+                        removed_cols.add(
+                            cj
+                        )
+        self.cols_to_drop = [feature for feature in numerical if feature not in imp_num_features or feature in removed_cols]  # storing the list of numerical features which are not important for the prediction of target variable and can be dropped from the data
         return self
 
     def transform(self, X):
@@ -414,7 +420,9 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
         categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature != target]
         anova_report = []
         for feature in categorical:
-            groups = [y.loc[group.index].values for _,group in X.groupby(feature)]  #extracting the values of the saleprice based on different categories of current feature, based on the index of the category
+            groups = [y.loc[group.index].values for _,group in X.groupby(feature) if len(group)>0]  #extracting the values of the saleprice based on different categories of current feature, based on the index of the category
+            if len(groups) <2:
+                self.cols_to_drop.append(feature)  #if there is only one category in the current feature, then we can directly drop that feature as it doesn't have any statistical relationship with the target variable       
             f_stats,p_value = stats.f_oneway(*groups)  #anova test of different saleprice values based on each categories of current feature
             anova_report.append({
                 'feature':feature,
@@ -476,13 +484,12 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.preprocessor: Optional[ColumnTransformer] = None  
     
     #this function is for updating the numerical, categorical, ordinal and nominal features 
-    def remaining_features(self, X: pd.DataFrame) -> list[str]:
+    def update_features_collection(self, X: pd.DataFrame) -> None:
         self.categorical_features = [feature for feature in X.select_dtypes(exclude=np.number).columns]
         self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
         self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
         self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
         logging.info('updated the numerical, categorical, ordinal and nominal features based on the changes in the data')
-        return self
 
     #this function is for building the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge, which will be applied before feature selection in the data transformation process
     def build_prepipeline(self):
@@ -537,18 +544,19 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         if 'id' in X.columns:
             X = X.drop(columns=['id'])  #dropping the 'id' column as it doesn't have any importance in the prediction of target variable and it is just a unique identifier for each row in the data
         y = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
-        self.build_prepipeline()   #built the prepipeline
-        self.build_feature_selection_pipeline()   #built the feature selection pipeline
+        self.pre_pipeline= self.build_prepipeline()   #built the prepipeline
+        
         #AFTER EVERY TRAINING OF PIPELINE , WE UPDATE THE NUMERICAL,CATEGORICAL FEATURES AND SAVE THE TRAINED PIPELINE OBJECT
         X_preprocessed = self.pre_pipeline.fit_transform(X)   #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
         save_object(self.config.prepipeline_obj_file_path, self.pre_pipeline)  
-        self.remaining_features(X_preprocessed)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
+        self.update_features_collection(X_preprocessed)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the pre pipeline
         
+        self.feature_selection_pipeline =  self.build_feature_selection_pipeline()   #built the feature selection pipeline
         X_selected = self.feature_selection_pipeline.fit_transform(X_preprocessed, y) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
         save_object(self.config.feature_selection_obj_file_path, self.feature_selection_pipeline)
-        self.remaining_features(X_selected)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
+        self.update_features_collection(X_selected)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
         
-        self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
+        self.preprocessor = self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
         self.preprocessor.fit_transform(X_selected)
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
   
