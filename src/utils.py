@@ -2,6 +2,7 @@ import os
 import sys
 import dill
 from src.logger import logging
+import numpy as np
 from src.exception import CustomError
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import r2_score
@@ -39,6 +40,6 @@ def model_evaluation(X_train, y_train, X_test, models, params):
         best_model = trained_models[best_model_name]    #extracting the best model based on the name of the best model found by best score report
         test_predictions = best_model.predict(X_test)  #predicting the target variable on the test data using the best model found by grid search
         best_model_score = score_report[best_model_name]
-        return best_model, best_model_score,test_predictions
+        return best_model, best_model_score,np.expm1(test_predictions)
     except Exception as e:
         raise CustomError(e, sys)    

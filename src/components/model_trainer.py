@@ -1,7 +1,6 @@
 import os
 import sys
 from src.components.data_ingestion import DataIngestion
-from src.components.data_transformation import DataTransformer
 from src.logger import logging
 import pandas as pd
 from dataclasses import dataclass
@@ -10,11 +9,12 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor 
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
-from src.utils import save_object, model_evaluation
+from src.utils import save_object, model_evaluation, load_object
+import numpy as np
 
 @dataclass
 class ModelTrainerConfig:
-    traned_model_path:str = os.path.join('artifacts','model.pkl')
+    trained_model_path:str = os.path.join('artifacts','model.pkl')
 
 
 
@@ -81,13 +81,19 @@ if __name__ == '__main__':
     train_data_path, test_data_path = DataIngestion().initiate_data_ingestion()  #initiating the data ingestion and getting the train and test data path    
     train_data = pd.read_csv(train_data_path)  #reading the train data
     test_data = pd.read_csv(test_data_path)  #reading the test data
-    dt = DataTransformer()
+    prepipeline = load_object(os.path.join('artifacts','prepipeline.pkl'))  #loading the preprocessor object which is used for data transformation
+    feature_selector = load_object(os.path.join('artifacts','feature_selection.pkl'))  #loading the feature selector object which is used for feature selection
+    preprocessor = load_object(os.path.join('artifacts','preprocessor.pkl'))  #loading the preprocessor object which is used for data transformation
     train_data.columns = train_data.columns.str.lower()
     test_data.columns = test_data.columns.str.lower()
     X_train = train_data.drop(columns=['saleprice'])
     y_train = train_data['saleprice']
-    dt.fit(X_train, y_train)  #fitting the data transformer on the training data to learn the parameters required for transformation and feature selection
-    X_train_encoded,y_logged = dt.transform(X_train, y_train)
-    X_test_encoded= dt.transform(test_data) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
-
+    X = prepipeline.transform(X_train)
+    X= feature_selector.transform(X)
+    X_train_encoded=preprocessor.transform(X)
+    y_logged = np.log1p(y_train)  #applying log transformation to the target variable to make it more normally distributed and to reduce the effect of outliers on the model training   
+   
+    X_test = prepipeline.transform(test_data)
+    X_test= feature_selector.transform(X_test)
+    X_test_encoded=preprocessor.transform(X_test)
     best_model, best_model_score = model_trainer.iniate_model_trainer(X_train_encoded,y_logged, X_test_encoded)
