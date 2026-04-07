@@ -344,13 +344,17 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         removed_cols = set()
         for i in range(len(imp_corr_matrix.columns)):
             for j in range(i):
-                if ci in removed_cols or cj in removed_cols:
-                    continue  # if any of the two features is already removed, then we skip the correlation check for that pair of features
+                
                 r = imp_corr_matrix.iloc[
                     i, j
                 ]  # extracting the correlation value between ith and jth features
                 ci = imp_corr_matrix.columns[i]  # extracting the ith feature
                 cj = imp_corr_matrix.columns[j]  # extracting the jth feature
+                
+                if ci in removed_cols or cj in removed_cols:
+                    continue  # if any of the two features is already removed, then we skip the correlation check for that pair of features
+
+
                 if (
                     ci != cj
                     and abs(r) > self.corr_feature_threshold
