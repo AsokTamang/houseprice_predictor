@@ -20,12 +20,15 @@ from src.utils import save_object
 
 @dataclass
 class DataTransformationConfig:
+    #path for storing the trained prepipeline
     prepipeline_obj_file_path: str = os.path.join(
         "artifacts", "prepipeline.pkl"
     )
+    #path for storing the trained feature selection pipeline
     feature_selection_obj_file_path: str = os.path.join(
         "artifacts", "feature_selection.pkl"
     )
+    #path for storing the trained preprocessor object
     preprocessor_obj_file_path: str = os.path.join(
         "artifacts", "preprocessor.pkl"
     )  # location where the preprocessor object will be stored after transformation
@@ -73,10 +76,10 @@ class DomainImputer(BaseEstimator, TransformerMixin):
         self.zero_features = ["masvnrarea", "garageyrblt"]
         self.lot_frontage_median: dict[str, float] = (
             {}
-        )  # store the median values of 'LotFrontage' based on 'Neighborhood'
+        )  # store the median values of 'lotfrontage' based on 'neighborhood' category
         self.electrical_mode: str = ""  # store the mode value of 'Electrical' column
         self.global_lot_frontage_median: float = (
-            0.0  # store the global median value of 'LotFrontage' in case there are neighborhoods in test data which are not present in training data
+            0.0  # store the global median value of 'lotfrontage' in case there are neighborhoods in test data which are not present in training data
         )
 
     # this function is for learning the parameters quired for imputation from the training data and storing those parameters in the instance variables of the class which will be used later for imputation in both training and test data
@@ -92,7 +95,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 self.lot_frontage_median[neighborhood] = (
                     median_value  # storing the median values in a dictionary with neighborhood as key and median value as value
                 )
-            self.global_lot_frontage_median = np.mean(
+            self.global_lot_frontage_median = np.median(
                     list(self.lot_frontage_median.values())
                 )  # calculating the global median value of 'LotFrontage' by taking the mean of all the neighborhood median values
         if "electrical" in X.columns:
@@ -264,7 +267,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
         }
         categorical = [
             feature
-            for feature in X.select_dtypes(include="object").columns
+            for feature in X.select_dtypes(exclude=np.number).columns
             if feature != "saleprice"
         ]
 
@@ -313,7 +316,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.cols_to_drop: list[str] = []
         self.corr_target_threshold: float = (
-            0.01  # threshold for identifying constant features based on correlation with target variable
+            0.1  # threshold for identifying constant features based on correlation with target variable
         )
         self.corr_feature_threshold: float = (
             0.75  # threshold for identifying constant features based on correlation with other features
@@ -488,8 +491,8 @@ class DataTransformer(BaseEstimator, TransformerMixin):
             ("domain_imputer", DomainImputer()),
             ("feature_creator", CreateNewFeatures())
         ]
-        self.pre_pipeline = Pipeline(prepipeline_steps)
-        return self.pre_pipeline
+        return  Pipeline(prepipeline_steps)
+        
     
     def build_feature_selection_pipeline(self):
         feature_selection_steps = [
@@ -499,8 +502,8 @@ class DataTransformer(BaseEstimator, TransformerMixin):
             ("multicollinearity_dropper", MulticollinearityDropper()), 
             ("drop_weak_categorical", DropWeakCategorical())
         ]
-        self.feature_selection_pipeline = Pipeline(feature_selection_steps)
-        return self.feature_selection_pipeline
+        return Pipeline(feature_selection_steps)
+       
 
     def numerical_pipeline(self):
         numerical_pipeline = Pipeline([
@@ -523,12 +526,12 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         ])
         return nominal_pipeline
     def build_preprocessor(self):
-        self.preprocessor = ColumnTransformer([
+        return ColumnTransformer([
             ("numerical_pipeline", self.numerical_pipeline(), self.numerical_features),
             ("ordinal_pipeline", self.ordinal_pipeline(), self.ordinal_features),
             ("nominal_pipeline", self.nominal_pipeline(), self.nominal_features)
         ])
-        return self.preprocessor
+        
    
     def fit(self, X: pd.DataFrame, y: pd.Series):  #for fitting and transforming the training data
         if 'id' in X.columns:
@@ -556,9 +559,9 @@ class DataTransformer(BaseEstimator, TransformerMixin):
             raise RuntimeError("DataTransformer not fitted yet.")
         if 'id' in X.columns:
             X = X.drop(columns=['id'])  
-        X_preprocessed = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
-        X_selected = self.feature_selection_pipeline.transform(X_preprocessed) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
-        X_encoded = self.preprocessor.transform(X_selected)
+        X = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
+        X = self.feature_selection_pipeline.transform(X) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
+        X_encoded = self.preprocessor.transform(X)
         if y is not None:
             y_logged = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
             return X_encoded, y_logged
