@@ -157,6 +157,7 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y=None):
         return self
     def transform(self, X):
+        X = X.copy()
         binary_features = {
             'has_pool': 'poolarea',
             'has_garage': 'garagearea',
@@ -423,10 +424,12 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
         target = "saleprice"
         categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature != target]
         anova_report = []
+    
         for feature in categorical:
             groups = [y.loc[group.index].values for _,group in X.groupby(feature) if len(group)>0]  #extracting the values of the saleprice based on different categories of current feature, based on the index of the category
             if len(groups) <2:
-                self.cols_to_drop.append(feature)  #if there is only one category in the current feature, then we can directly drop that feature as it doesn't have any statistical relationship with the target variable       
+                self.cols_to_drop.append(feature)  #if there is only one category in the current feature, then we can directly drop that feature as it doesn't have any statistical relationship with the target variable   
+                continue  #skipping the current feature     
             f_stats,p_value = stats.f_oneway(*groups)  #anova test of different saleprice values based on each categories of current feature
             anova_report.append({
                 'feature':feature,
@@ -434,7 +437,8 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
                 'p_value':p_value
             })
         total_result_cat = pd.DataFrame(anova_report).sort_values('p_value')
-        self.cols_to_drop= total_result_cat[(total_result_cat['p_value']>0.05) | (total_result_cat['p_value'].isna())]['feature'].tolist()
+        weak_anova_cols = total_result_cat[(total_result_cat['p_value']>0.05) | (total_result_cat['p_value'].isna())]['feature'].tolist()
+        self.cols_to_drop += weak_anova_cols  #total cols to drop after finding weak ANOVA and single categorical feature
         return self
     def transform(self, X):
         X = X.copy()
@@ -502,7 +506,8 @@ class DataTransformer(BaseEstimator, TransformerMixin):
             ("domain_imputer", DomainImputer()),
             ("feature_creator", CreateNewFeatures())
         ]
-        return  Pipeline(prepipeline_steps)
+        return Pipeline(prepipeline_steps)
+        
         
     
     def build_feature_selection_pipeline(self):
@@ -561,7 +566,8 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.update_features_collection(X_selected)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
         
         self.preprocessor = self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
-        self.preprocessor.fit_transform(X_selected)
+        self.preprocessor.fit(X_selected)
+        logging.info('preprocessor fitted successfully with the transformed training data after feature selection')
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
   
         self._is_fitted = True
@@ -570,13 +576,16 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         if not self._is_fitted:
             raise RuntimeError("DataTransformer not fitted yet.")
         if 'id' in X.columns:
-            X = X.drop(columns=['id'])  
-        X = self.pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
-        X = self.feature_selection_pipeline.transform(X) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
-        X_encoded = self.preprocessor.transform(X)
+            X = X.drop(columns=['id'])
+        pre_pipeline = load_object(self.config.prepipeline_obj_file_path)  #loading the trained pre pipeline object      
+        X = pre_pipeline.transform(X)  #applying the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge
+        feature_selection_pipeline = load_object(self.config.feature_selection_obj_file_path)  #loading the trained feature selection pipeline object
+        X = feature_selection_pipeline.transform(X) #applying the feature selection pipeline of dropping constant numerical features, dropping constant categorical features, selecting important numerical features based on correlation with target variable and correlation with other features, dropping the features which have high multicollinearity with other features and very weak correlation with target variable, and dropping the categorical features which have weak statistical relationship with the target variable based on ANOVA test
+        preprocessor = load_object(self.config.preprocessor_obj_file_path)  #loading the trained preprocessor object for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
+        X_encoded = preprocessor.transform(X)
         if y is not None:
-            y_logged = np.log1p(y)  #taking the log of target variable to make it more normally distributed, as the distribution of saleprice is right skewed and taking log will make it more normal which will help the model to learn better
-            return np.c_[X_encoded, y_logged]  #combining the transformed features and target variable and returning them together
+            y_logged = np.log1p(y).values  #taking the log of target variable to make it more normally distributed, and converting them into numpy array
+            return X_encoded, y_logged  #combining the transformed features and target variable and returning them together
         return X_encoded
     
 

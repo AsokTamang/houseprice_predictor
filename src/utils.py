@@ -14,7 +14,13 @@ def save_object(file_path, obj):
             dill.dump(obj, file_obj)  # Use dill to serialize the object
     except Exception as e:
         raise CustomError(e, sys)
-    
+
+def load_object(file_path): #loading the trained objects 
+    try:
+        with open(file_path, 'rb') as file_obj:
+            return dill.load(file_obj)  # Use dill to deserialize the object
+    except Exception as e:
+        raise CustomError(e, sys)    
 
 def model_evaluation(X_train, y_train, X_test, models, params):
     try:
@@ -29,8 +35,8 @@ def model_evaluation(X_train, y_train, X_test, models, params):
             cv_score = gs.best_score_
             score_report[model_name] = cv_score
            
-        best_model_name = max(score_report, key=score_report.get)
-        best_model = trained_models[best_model_name]
+        best_model_name = max(score_report, key=score_report.get)  #extracting the name of the best model based on the highest cross validation score among all the models
+        best_model = trained_models[best_model_name]    #extracting the best model based on the name of the best model found by best score report
         test_predictions = best_model.predict(X_test)  #predicting the target variable on the test data using the best model found by grid search
         best_model_score = score_report[best_model_name]
         return best_model, best_model_score,test_predictions
