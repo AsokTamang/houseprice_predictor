@@ -1,11 +1,11 @@
 import os
 import sys
 import dill
-from src.logger import logging
 import numpy as np
 from src.exception import CustomError
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import r2_score
+import logging
 
 def save_object(file_path, obj):    
     try:
@@ -13,12 +13,14 @@ def save_object(file_path, obj):
         os.makedirs(dir_path, exist_ok=True)  # Create the directory if it doesn't exist
         with open(file_path, 'wb') as file_obj:
             dill.dump(obj, file_obj)  # Use dill to serialize the object
+            logging.info(f"Object saved successfully at {file_path}")  #logging the file path where the object is saved
     except Exception as e:
         raise CustomError(e, sys)
 
 def load_object(file_path): #loading the trained objects 
     try:
         with open(file_path, 'rb') as file_obj:
+            logging.info(f"Loading object from {file_path}")  #logging the file path from which the object is being loaded
             return dill.load(file_obj)  # Use dill to deserialize the object
     except Exception as e:
         raise CustomError(e, sys)    
@@ -32,6 +34,7 @@ def model_evaluation(X_train, y_train, X_test, models, params):
             gs = GridSearchCV(model, param, cv=5)
             gs.fit(X_train, y_train)  #training the model on training data with different hyperparameters and finding the best hyperparameters based on cross validation score
             best_model = gs.best_estimator_  #finding the best model based on the best hyperparameters found by grid search
+            logging.info(f"Best hyperparameters for {model_name} are {gs.best_params_}")  #logging the best hyperparameters found by grid search for the current model
             trained_models[model_name] = best_model  #finding the score of the best model on the cross_validation data
             cv_score = gs.best_score_
             score_report[model_name] = cv_score

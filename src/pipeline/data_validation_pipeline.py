@@ -1,5 +1,6 @@
 from typing import Union
 from src.exception import CustomError
+import logging
 import sys
 import pandas as pd
 class CustomData:

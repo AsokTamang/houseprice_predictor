@@ -1,7 +1,7 @@
 import os
 import sys
 from src.components.data_ingestion import DataIngestion
-from src.logger import logging
+import logging
 import pandas as pd
 from dataclasses import dataclass
 from src.exception import CustomError

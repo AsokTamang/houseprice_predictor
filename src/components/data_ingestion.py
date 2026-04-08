@@ -1,7 +1,7 @@
 import os
 import sys
 from src.exception import CustomError
-from src.logger import logging
+import logging
 from dataclasses import dataclass
 import pandas as pd
 

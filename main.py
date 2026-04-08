@@ -1,6 +1,7 @@
 import sys
+import src.logger
 from src.exception import CustomError
-from src.logger import logging
+import logging
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -12,7 +13,6 @@ import uvicorn
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
-
 app.mount('/static', StaticFiles(directory='statics'), name='statics')
 
 
@@ -21,7 +21,7 @@ def root():
     return FileResponse('statics/home.html')
 
 
-class PredictRequest(BaseModel):
+class PredictRequest(BaseModel):  #class for defining the input data for prediction
     mssubclass: Union[int, None] = None
     mszoning: Union[str, None] = None
     lotfrontage: Union[float, None] = None
@@ -193,15 +193,17 @@ def predict(data: PredictRequest):
             salecondition=data.salecondition
         )
 
-        df_features = features.get_data_as_dataframe()
-        predict_pipeline = PredictPipeline()
+        df_features = features.get_data_as_dataframe() #converting into dataframe
+        predict_pipeline = PredictPipeline()  #calling the predict pipeline class
         result = predict_pipeline.predict(df_features)
-
+        
         return {'prediction': float(result[0])}
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logging.error(f"Prediction error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse({"error": "Prediction failed"}, status_code=500)
 
 
 if __name__ == "__main__":

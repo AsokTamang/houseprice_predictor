@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ames House Price Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --ink: #1a1208;
+    --paper: #f5f0e8;
+    --cream: #ede8d8;
+    --gold: #c8912a;
+    --gold-light: #e8b84b;
+    --rust: #b84c2a;
+    --sage: #4a6741;
+    --sage-light: #6a8f60;
+    --border: #c8b89a;
+    --muted: #7a6e5a;
+    --shadow: rgba(26,18,8,0.15);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(200,145,42,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(74,103,65,0.06) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23f5f0e8'/%3E%3Crect x='0' y='0' width='1' height='1' fill='%23c8b89a' opacity='0.15'/%3E%3C/svg%3E");
+    font-family: 'DM Sans', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 2px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 32px 48px 28px;
+    display: flex;
+    align-items: flex-end;
+    gap: 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 24px var(--shadow);
+  }
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  header h1 span { color: var(--gold); }
+  .header-sub {
+    font-size: 0.82rem;
+    color: #b0a898;
+    margin-top: 6px;
+    font-weight: 300;
+  }
+  .header-badge {
+    margin-left: auto;
+    background: rgba(200,145,42,0.15);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    padding: 6px 14px;
+    border-radius: 2px;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  /* ── LAYOUT ── */
+  .wrapper {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 48px 32px 0;
+  }
+
+  /* ── RESULT BANNER ── */
+  #result-banner {
+    display: none;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 4px;
+    padding: 36px 48px;
+    margin-bottom: 40px;
+    position: relative;
+    overflow: hidden;
+    animation: slideDown 0.4s ease;
+  }
+  #result-banner::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: var(--gold);
+  }
+  #result-banner .result-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+  #result-banner .result-price {
+    font-family: 'Playfair Display', serif;
+    font-size: 3.6rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  #result-banner .result-note {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: #b0a898;
+    font-weight: 300;
+  }
+  #result-banner .close-btn {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: none; border: none;
+    color: #b0a898; cursor: pointer;
+    font-size: 1.2rem;
+    font-family: 'DM Mono', monospace;
+  }
+  #result-banner .close-btn:hover { color: var(--paper); }
+
+  #error-banner {
+    display: none;
+    background: #fff8f6;
+    border: 1px solid var(--rust);
+    border-left: 5px solid var(--rust);
+    color: var(--rust);
+    border-radius: 4px;
+    padding: 18px 24px;
+    margin-bottom: 32px;
+    font-size: 0.88rem;
+    font-family: 'DM Mono', monospace;
+    animation: slideDown 0.3s ease;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── PROGRESS ── */
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--cream);
+    border-radius: 99px;
+    margin-bottom: 40px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--sage));
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    background: var(--cream);
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .section-icon {
+    margin-left: auto;
+    font-size: 1.3rem;
+    opacity: 0.6;
+  }
+
+  /* ── GRID ── */
+  .fields-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px 24px;
+  }
+
+  /* ── FIELD ── */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .field label .req {
+    color: var(--rust);
+    margin-left: 2px;
+  }
+  .field input,
+  .field select {
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    background: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    color: var(--ink);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a6e5a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    cursor: pointer;
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(200,145,42,0.12);
+  }
+  .field input.invalid,
+  .field select.invalid {
+    border-color: var(--rust);
+    box-shadow: 0 0 0 3px rgba(184,76,42,0.1);
+  }
+  .field .hint {
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── ACTIONS ── */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 0 0;
+    border-top: 2px solid var(--ink);
+    margin-top: 8px;
+  }
+  .btn-predict {
+    background: var(--ink);
+    color: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 14px 40px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.2s, color 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-predict:hover:not(:disabled) {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--ink);
+    transform: translateY(-1px);
+  }
+  .btn-predict:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-reset {
+    background: transparent;
+    color: var(--muted);
+    border: 1.5px solid var(--border);
+    padding: 14px 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .btn-reset:hover {
+    color: var(--rust);
+    border-color: var(--rust);
+  }
+  .actions-note {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* spinner */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(245,240,232,0.3);
+    border-top-color: var(--paper);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn-predict.loading .spinner { display: block; }
+  .btn-predict.loading .btn-text { opacity: 0.7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    header { padding: 24px 20px; flex-wrap: wrap; }
+    header h1 { font-size: 1.8rem; }
+    .header-badge { display: none; }
+    .wrapper { padding: 28px 16px 0; }
+    .fields-grid { grid-template-columns: 1fr 1fr; }
+    #result-banner .result-price { font-size: 2.6rem; }
+  }
+  @media (max-width: 480px) {
+    .fields-grid { grid-template-columns: 1fr; }
+    .actions { flex-wrap: wrap; }
+    .actions-note { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="header-eyebrow">ML Prediction Model · Ames Iowa Dataset</div>
+    <h1>House <span>Price</span> Predictor</h1>
+    <div class="header-sub">Gradient Boosting · 79 Features · Log-transformed Target</div>
+  </div>
+  <div class="header-badge">API · 127.0.0.1:8000</div>
+</header>
+
+<div class="wrapper">
+
+  <div id="result-banner">
+    <button class="close-btn" onclick="closeResult()">✕</button>
+    <div class="result-label">Estimated Sale Price</div>
+    <div class="result-price" id="result-price">—</div>
+    <div class="result-note">Based on the features provided · Trained on Ames Housing Dataset</div>
+  </div>
+
+  <div id="error-banner"></div>
+
+  <div class="progress-label">Form completion</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+  </div>
+
+  <form id="predict-form" novalidate>
+
+    <!-- 1. General & Zoning -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">01</span>
+        <span class="section-title">General & Zoning</span>
+        <span class="section-icon">🏷️</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>MS SubClass <span class="req">*</span></label>
+          <select name="mssubclass" required>
+            <option value="">— select —</option>
+            <option>20</option><option>30</option><option>40</option><option>45</option>
+            <option>50</option><option>60</option><option>70</option><option>75</option>
+            <option>80</option><option>85</option><option>90</option><option>120</option>
+            <option>150</option><option>160</option><option>180</option><option>190</option>
+          </select>
+          <span class="hint">Building class type identifier</span>
+        </div>
+        <div class="field">
+          <label>MS Zoning <span class="req">*</span></label>
+          <select name="mszoning" required>
+            <option value="">— select —</option>
+            <option>RL</option><option>RM</option><option>FV</option><option>RH</option><option>C (all)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lot Frontage (ft)</label>
+          <input type="number" name="lotfrontage" step="any" min="0" placeholder="e.g. 65"/>
+        </div>
+        <div class="field">
+          <label>Lot Area (sqft) <span class="req">*</span></label>
+          <input type="number" name="lotarea" step="1" min="0" placeholder="e.g. 8450" required/>
+        </div>
+        <div class="field">
+          <label>Street Type</label>
+          <select name="street">
+            <option value="">— select —</option><option>Pave</option><option>Grvl</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Alley Access</label>
+          <select name="alley">
+            <option value="">— select —</option><option>Grvl</option><option>Pave</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lot Shape</label>
+          <select name="lotshape">
+            <option value="">— select —</option><option>Reg</option><option>IR1</option><option>IR2</option><option>IR3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Land Contour</label>
+          <select name="landcontour">
+            <option value="">— select —</option><option>Lvl</option><option>Bnk</option><option>HLS</option><option>Low</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Utilities</label>
+          <select name="utilities">
+            <option value="">— select —</option><option>AllPub</option><option>NoSewr</option><option>NoSeWa</option><option>ELO</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lot Config</label>
+          <select name="lotconfig">
+            <option value="">— select —</option><option>Inside</option><option>Corner</option><option>CulDSac</option><option>FR2</option><option>FR3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Land Slope</label>
+          <select name="landslope">
+            <option value="">— select —</option><option>Gtl</option><option>Mod</option><option>Sev</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Neighborhood <span class="req">*</span></label>
+          <select name="neighborhood" required>
+            <option value="">— select —</option>
+            <option>NAmes</option><option>CollgCr</option><option>OldTown</option><option>Edwards</option>
+            <option>Somerst</option><option>Gilbert</option><option>NridgHt</option><option>StoneBr</option>
+            <option>Timber</option><option>Veenker</option><option>Crawfor</option><option>NoRidge</option>
+            <option>Mitchel</option><option>Sawyer</option><option>SawyerW</option><option>BrkSide</option>
+            <option>NWAmes</option><option>Blmngtn</option><option>ClearCr</option><option>MeadowV</option><option>IDOTRR</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Proximity Condition 1</label>
+          <select name="condition1">
+            <option value="">— select —</option>
+            <option>Norm</option><option>Artery</option><option>Feedr</option><option>PosN</option><option>PosA</option><option>RRNn</option><option>RRAn</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Proximity Condition 2</label>
+          <select name="condition2">
+            <option value="">— select —</option>
+            <option>Norm</option><option>Artery</option><option>Feedr</option><option>PosN</option><option>PosA</option><option>RRNn</option><option>RRAn</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Building & Design -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">02</span>
+        <span class="section-title">Building & Design</span>
+        <span class="section-icon">🏗️</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Building Type</label>
+          <select name="bldgtype">
+            <option value="">— select —</option><option>1Fam</option><option>2FmCon</option><option>Duplex</option><option>TwnhsE</option><option>Twnhs</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>House Style</label>
+          <select name="housestyle">
+            <option value="">— select —</option>
+            <option>1Story</option><option>1.5Fin</option><option>1.5Unf</option><option>2Story</option>
+            <option>2.5Fin</option><option>2.5Unf</option><option>SFoyer</option><option>SLvl</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Overall Quality (1-10) <span class="req">*</span></label>
+          <select name="overallqual" required>
+            <option value="">— select —</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Overall Condition (1-10)</label>
+          <select name="overallcond">
+            <option value="">— select —</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Year Built <span class="req">*</span></label>
+          <input type="number" name="yearbuilt" min="1800" max="2025" placeholder="e.g. 1995" required/>
+        </div>
+        <div class="field">
+          <label>Year Remodeled</label>
+          <input type="number" name="yearremodadd" min="1900" max="2025" placeholder="e.g. 2005"/>
+        </div>
+        <div class="field">
+          <label>Roof Style</label>
+          <select name="roofstyle">
+            <option value="">— select —</option><option>Gable</option><option>Hip</option><option>Gambrel</option><option>Mansard</option><option>Flat</option><option>Shed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Roof Material</label>
+          <select name="roofmatl">
+            <option value="">— select —</option><option>CompShg</option><option>Metal</option><option>WdShngl</option><option>WdShake</option><option>Membran</option><option>Tar&amp;Grv</option><option>Roll</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Exterior 1st</label>
+          <select name="exterior1st">
+            <option value="">— select —</option><option>VinylSd</option><option>MetalSd</option><option>Wd Sdng</option><option>HdBoard</option><option>Plywood</option><option>CemntBd</option><option>BrkFace</option><option>Stone</option><option>Stucco</option><option>AsbShng</option><option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Exterior 2nd</label>
+          <select name="exterior2nd">
+            <option value="">— select —</option><option>VinylSd</option><option>MetalSd</option><option>Wd Sdng</option><option>HdBoard</option><option>Plywood</option><option>CemntBd</option><option>BrkFace</option><option>Stone</option><option>Stucco</option><option>AsbShng</option><option>Other</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Masonry Veneer Type</label>
+          <select name="masvnrtype">
+            <option value="">— select —</option><option>BrkFace</option><option>Stone</option><option>None</option><option>BrkCmn</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Masonry Area (sqft)</label>
+          <input type="number" name="masvnrarea" step="any" min="0" placeholder="e.g. 196"/>
+        </div>
+        <div class="field">
+          <label>Exterior Quality</label>
+          <select name="exterqual">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Exterior Condition</label>
+          <select name="extercond">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Foundation</label>
+          <select name="foundation">
+            <option value="">— select —</option><option>PConc</option><option>CBlock</option><option>BrkTil</option><option>Stone</option><option>Wood</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Basement & Utilities -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">03</span>
+        <span class="section-title">Basement & Utilities</span>
+        <span class="section-icon">🧱</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Basement Quality</label>
+          <select name="bsmtqual">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Basement Condition</label>
+          <select name="bsmtcond">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Basement Exposure</label>
+          <select name="bsmtexposure">
+            <option value="">— select —</option><option>Gd</option><option>Av</option><option>Mn</option><option>No</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bsmt Fin Type 1</label>
+          <select name="bsmtfintype1">
+            <option value="">— select —</option><option>GLQ</option><option>ALQ</option><option>BLQ</option><option>Rec</option><option>LwQ</option><option>Unf</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bsmt Fin SF 1</label>
+          <input type="number" name="bsmtfinsf1" step="any" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Bsmt Fin Type 2</label>
+          <select name="bsmtfintype2">
+            <option value="">— select —</option><option>GLQ</option><option>ALQ</option><option>BLQ</option><option>Rec</option><option>LwQ</option><option>Unf</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bsmt Fin SF 2</label>
+          <input type="number" name="bsmtfinsf2" step="any" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Bsmt Unfinished SF</label>
+          <input type="number" name="bsmtunfsf" step="any" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Total Basement SF <span class="req">*</span></label>
+          <input type="number" name="totalbsmtsf" step="any" min="0" placeholder="sqft" required/>
+        </div>
+        <div class="field">
+          <label>Heating</label>
+          <select name="heating">
+            <option value="">— select —</option><option>GasA</option><option>GasW</option><option>Wall</option><option>OthW</option><option>Floor</option><option>Grav</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Heating Quality</label>
+          <select name="heatingqc">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Central Air</label>
+          <select name="centralair">
+            <option value="">— select —</option><option>Y</option><option>N</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Electrical System</label>
+          <select name="electrical">
+            <option value="">— select —</option><option>SBrkr</option><option>FuseA</option><option>FuseF</option><option>FuseP</option><option>Mix</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Living Area & Rooms -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">04</span>
+        <span class="section-title">Living Area & Rooms</span>
+        <span class="section-icon">🛋️</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>1st Floor SF <span class="req">*</span></label>
+          <input type="number" name="firstflrsf" step="1" min="0" placeholder="sqft" required/>
+        </div>
+        <div class="field">
+          <label>2nd Floor SF</label>
+          <input type="number" name="secondflrsf" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Low Quality Fin SF</label>
+          <input type="number" name="lowqualfinsf" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Above Grade Living Area <span class="req">*</span></label>
+          <input type="number" name="grlivarea" step="1" min="0" placeholder="sqft" required/>
+        </div>
+        <div class="field">
+          <label>Bsmt Full Baths</label>
+          <select name="bsmtfullbath">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option><option>3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bsmt Half Baths</label>
+          <select name="bsmthalfbath">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Full Baths Above Grade</label>
+          <select name="fullbath">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option><option>3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Half Baths Above Grade</label>
+          <select name="halfbath">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bedrooms Above Grade</label>
+          <select name="bedroomabvgr">
+            <option value="">— select —</option>
+            <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Kitchens Above Grade</label>
+          <select name="kitchenabvgr">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Kitchen Quality</label>
+          <select name="kitchenqual">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Total Rooms Above Grade</label>
+          <select name="totrmsabvgrd">
+            <option value="">— select —</option>
+            <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+            <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option>14</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Home Functionality</label>
+          <select name="functional">
+            <option value="">— select —</option><option>Typ</option><option>Min1</option><option>Min2</option><option>Mod</option><option>Maj1</option><option>Maj2</option><option>Sev</option><option>Sal</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Fireplace & Garage -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">05</span>
+        <span class="section-title">Fireplace & Garage</span>
+        <span class="section-icon">🔥</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Fireplaces</label>
+          <select name="fireplaces">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option><option>3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fireplace Quality</label>
+          <select name="fireplacequ">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Garage Type</label>
+          <select name="garagetype">
+            <option value="">— select —</option><option>Attchd</option><option>Detchd</option><option>BuiltIn</option><option>Basment</option><option>CarPort</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Garage Year Built</label>
+          <input type="number" name="garageyrblt" min="1900" max="2025" placeholder="e.g. 2003"/>
+        </div>
+        <div class="field">
+          <label>Garage Finish</label>
+          <select name="garagefinish">
+            <option value="">— select —</option><option>Fin</option><option>RFn</option><option>Unf</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Garage Cars</label>
+          <select name="garagecars">
+            <option value="">— select —</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Garage Area (sqft)</label>
+          <input type="number" name="garagearea" step="any" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Garage Quality</label>
+          <select name="garagequal">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Garage Condition</label>
+          <select name="garagecond">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>Po</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Paved Driveway</label>
+          <select name="paveddrive">
+            <option value="">— select —</option><option>Y</option><option>P</option><option>N</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Outdoor & Misc -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">06</span>
+        <span class="section-title">Outdoor & Misc</span>
+        <span class="section-icon">🌿</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Wood Deck SF</label>
+          <input type="number" name="wooddecksf" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Open Porch SF</label>
+          <input type="number" name="openporchsf" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Enclosed Porch SF</label>
+          <input type="number" name="enclosedporch" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>3-Season Porch SF</label>
+          <input type="number" name="threessnporch" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Screen Porch SF</label>
+          <input type="number" name="screenporch" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Pool Area (sqft)</label>
+          <input type="number" name="poolarea" step="1" min="0" placeholder="sqft"/>
+        </div>
+        <div class="field">
+          <label>Pool Quality</label>
+          <select name="poolqc">
+            <option value="">— select —</option><option>Ex</option><option>Gd</option><option>TA</option><option>Fa</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fence Quality</label>
+          <select name="fence">
+            <option value="">— select —</option><option>GdPrv</option><option>MnPrv</option><option>GdWo</option><option>MnWw</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Misc Feature</label>
+          <select name="miscfeature">
+            <option value="">— select —</option><option>Shed</option><option>Elev</option><option>TenC</option><option>Gar2</option><option>Othr</option><option>None</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Misc Value ($)</label>
+          <input type="number" name="miscval" step="1" min="0" placeholder="e.g. 0"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Sale Info -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">07</span>
+        <span class="section-title">Sale Information</span>
+        <span class="section-icon">📋</span>
+      </div>
+      <div class="fields-grid">
+        <div class="field">
+          <label>Month Sold <span class="req">*</span></label>
+          <select name="mosold" required>
+            <option value="">— select —</option>
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Year Sold <span class="req">*</span></label>
+          <select name="yrsold" required>
+            <option value="">— select —</option>
+            <option>2006</option><option>2007</option><option>2008</option><option>2009</option><option>2010</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sale Type</label>
+          <select name="saletype">
+            <option value="">— select —</option>
+            <option>WD</option><option>New</option><option>COD</option><option>Con</option><option>ConLD</option><option>ConLI</option><option>ConLw</option><option>Oth</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sale Condition</label>
+          <select name="salecondition">
+            <option value="">— select —</option>
+            <option>Normal</option><option>Abnorml</option><option>Partial</option><option>AdjLand</option><option>Alloca</option><option>Family</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="actions">
+      <button type="submit" class="btn-predict" id="submit-btn">
+        <div class="spinner"></div>
+        <span class="btn-text">Predict Sale Price</span>
+      </button>
+      <button type="button" class="btn-reset" onclick="resetForm()">Reset All</button>
+      <span class="actions-note" id="required-note">* Required fields must be filled</span>
+    </div>
+
+  </form>
+</div>
+
+<script>
+  const API_URL = 'http://127.0.0.1:8000/predict';
+
+  // ── PROGRESS TRACKING ──
+  function updateProgress() {
+    const allFields = document.querySelectorAll('#predict-form input, #predict-form select');
+    const filled = [...allFields].filter(f => f.value.trim() !== '').length;
+    const pct = Math.round((filled / allFields.length) * 100);
+    document.getElementById('progress-fill').style.width = pct + '%';
+  }
+  document.querySelectorAll('#predict-form input, #predict-form select')
+    .forEach(f => f.addEventListener('change', updateProgress));
+  document.querySelectorAll('#predict-form input')
+    .forEach(f => f.addEventListener('input', updateProgress));
+
+  // ── COLLECT PAYLOAD ──
+  function collectPayload() {
+    const form = document.getElementById('predict-form');
+    const fd = new FormData(form);
+    const payload = {};
+    const intFields = new Set(['mssubclass','lotarea','overallqual','overallcond','yearbuilt',
+      'yearremodadd','firstflrsf','secondflrsf','lowqualfinsf','grlivarea','fullbath','halfbath',
+      'bedroomabvgr','kitchenabvgr','totrmsabvgrd','fireplaces','wooddecksf','openporchsf',
+      'enclosedporch','threessnporch','screenporch','poolarea','miscval','mosold','yrsold',
+      'bsmtfullbath','bsmthalfbath','garagecars']);
+    const floatFields = new Set(['lotfrontage','masvnrarea','bsmtfinsf1','bsmtfinsf2',
+      'bsmtunfsf','totalbsmtsf','garagearea','garageyrblt']);
+
+    for (const [key, val] of fd.entries()) {
+      if (val === '' || val === null) {
+        payload[key] = null;
+      } else if (intFields.has(key)) {
+        const n = parseInt(val, 10);
+        payload[key] = isNaN(n) ? null : n;
+      } else if (floatFields.has(key)) {
+        const n = parseFloat(val);
+        payload[key] = isNaN(n) ? null : n;
+      } else {
+        payload[key] = val;
+      }
+    }
+    return payload;
+  }
+
+  // ── VALIDATE REQUIRED ──
+  function validateRequired() {
+    const required = document.querySelectorAll('#predict-form [required]');
+    let valid = true;
+    required.forEach(f => {
+      f.classList.remove('invalid');
+      if (!f.value.trim()) {
+        f.classList.add('invalid');
+        valid = false;
+      }
+    });
+    return valid;
+  }
+
+  // ── SUBMIT ──
+  document.getElementById('predict-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    document.getElementById('result-banner').style.display = 'none';
+    document.getElementById('error-banner').style.display = 'none';
+
+    if (!validateRequired()) {
+      showError('⚠ Please fill in all required fields (marked with *).');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.querySelector('.btn-text').textContent = 'Predicting…';
+
+    try {
+      const payload = collectPayload();
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || data.detail || `Server error ${res.status}`);
+      }
+      if (data.prediction === undefined) throw new Error('No prediction returned.');
+
+      showResult(data.prediction);
+
+    } catch (err) {
+      showError('⚠ ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.querySelector('.btn-text').textContent = 'Predict Sale Price';
+    }
+  });
+
+  function showResult(price) {
+    const formatted = new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', maximumFractionDigits: 0
+    }).format(price);
+    document.getElementById('result-price').textContent = formatted;
+    const banner = document.getElementById('result-banner');
+    banner.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function closeResult() {
+    document.getElementById('result-banner').style.display = 'none';
+  }
+
+  function resetForm() {
+    document.getElementById('predict-form').reset();
+    document.getElementById('result-banner').style.display = 'none';
+    document.getElementById('error-banner').style.display = 'none';
+    document.querySelectorAll('.invalid').forEach(f => f.classList.remove('invalid'));
+    updateProgress();
+  }
+</script>
+</body>
+</html>

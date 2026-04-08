@@ -7,7 +7,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from src.exception import CustomError
-from src.logger import logging
+import logging
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -495,7 +495,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.categorical_features:list[str] = []
         self.ordinal_features:list[str] = []
         self.nominal_features:list[str] = []
-        self._is_fitted:bool = False
+        self._is_fitted_:bool = False
         self.pre_pipeline:Optional[Pipeline] = None  
         self.feature_selection_pipeline: Optional[Pipeline] = None #22222
         self.preprocessor: Optional[ColumnTransformer] = None  
@@ -579,10 +579,10 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         logging.info('preprocessor fitted successfully with the transformed training data after feature selection')
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
   
-        self._is_fitted = True
+        self._is_fitted_ = True
         return self
     def transform(self, X: pd.DataFrame,y:Optional[pd.Series]=None):  #for transforming the test data based on the parameters learned from the training data
-        if not self._is_fitted:
+        if not self._is_fitted_:
             raise RuntimeError("DataTransformer not fitted yet.")
         if 'id' in X.columns:
             X = X.drop(columns=['id'])
