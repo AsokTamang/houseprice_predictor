@@ -7,7 +7,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from src.exception import CustomError
-import logging
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
@@ -50,9 +49,6 @@ class TypeCaster(BaseEstimator, TransformerMixin):
         for feature in X.columns:
             if feature in self.int_to_str_features:
                 X[feature] = X[feature].astype(str)
-        logging.info(
-            f"TypeCaster: Transformed {self.int_to_str_features} features to string as they represent category rather than numerical imporatance. "
-        )
         return X
 
 #class for filling the null values based on domain knowledge
@@ -92,9 +88,6 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                 median_value = X.loc[
                     X["neighborhood"] == neighborhood, "lotfrontage"
                 ].median()  # extracting the median value of 'LotFrontage' for each 'Neighborhood'
-                logging.info(
-                    f"DomainImputer: Calculated median value of 'LotFrontage' for neighborhood '{neighborhood}' is {median_value}."
-                )
                 self.lot_frontage_median[neighborhood] = (
                     median_value  # storing the median values in a dictionary with neighborhood as key and median value as value
                 )
@@ -102,9 +95,6 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                     list(self.lot_frontage_median.values())
                 )  # calculating the global median value of 'LotFrontage' by taking the mean of all the neighborhood median values
         if "electrical" in X.columns:
-            logging.info(
-                f"DomainImputer: Calculated mode value of 'Electrical' column is {X['electrical'].mode()[0]}."
-            )
             self.electrical_mode = X["electrical"].mode()[
                 0
             ]  # extracting the mode value of 'Electrical' column and storing it in a variable
@@ -114,23 +104,14 @@ class DomainImputer(BaseEstimator, TransformerMixin):
         X = X.copy()
         for feature in X.columns:
             if feature in self.none_features:
-                logging.info(
-                    f"DomainImputer: Filling missing values of '{feature}' with 'None' as it represents absence of the feature."
-                )
                 X[feature] = X[feature].fillna(
                     "None"
                 )  # filling the missing values with 'None' for the features in none_features list
             elif feature in self.zero_features:
-                logging.info(
-                    f"DomainImputer: Filling missing values of '{feature}' with 0 as it represents absence of the feature."
-                )
                 X[feature] = X[feature].fillna(
                     0
                 )  # filling the missing values with 0 for the features in zero_features list
             elif feature == "lotfrontage":
-                logging.info(
-                    f"DomainImputer: Filling missing values of 'LotFrontage' based on the median value for each neighborhood."
-                )
                 for neighborhood, median_value in self.lot_frontage_median.items():
                     if neighborhood in X["neighborhood"].unique():  #if the stored neighbourhood category is present in the passed data neighbourhood column, then only we use the corresponding median value of lotfrontage
                         X.loc[X["neighborhood"] == neighborhood, "lotfrontage"] = X.loc[
@@ -139,16 +120,10 @@ class DomainImputer(BaseEstimator, TransformerMixin):
                             median_value
                         )  # filling the missing values of 'LotFrontage' with the corresponding median value based on the neighborhood
                     else:
-                        logging.info(
-                            f"DomainImputer: Neighborhood '{neighborhood}' not found in the data. Filling missing values of 'LotFrontage' with global median value {self.global_lot_frontage_median}."
-                        )
                         X["lotfrontage"] = X["lotfrontage"].fillna(
                             self.global_lot_frontage_median
                         )  # filling the missing values of 'LotFrontage' with global median value in case there are neighborhoods in test data which are not present in training data
             elif feature == "electrical":
-                logging.info(
-                    f"DomainImputer: Filling missing values of 'Electrical' column with mode value '{self.electrical_mode}' as it is the most common value in the column."
-                )
                 X[feature] = X[feature].fillna(
                     self.electrical_mode
                 )  # filling the missing values of 'Electrical' column with the mode value
@@ -229,9 +204,6 @@ class DropConstantNumerical(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
-        logging.info(
-            f"DropConstantNumerical: Dropping constant numerical features {self.cols_to_drop} as their variance is below the threshold of {self.threshold}."
-        )
         X = X.drop(
             columns=[col for col in self.cols_to_drop if col in X.columns]
         )  # dropping the constant numerical features from the data
@@ -310,9 +282,6 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
-        logging.info(
-            f"DropConstantCategorical: Dropping constant categorical features {self.cols_to_drop} as their maximum category frequency is above the threshold of {self.mi_threshold}."
-        )
         X = X.drop(
             columns=[col for col in self.cols_to_drop if col in X.columns]
         )  # dropping the constant categorical features from the data
@@ -390,9 +359,6 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
-        logging.info(
-            f"NumericFeatureSelection: Dropping numerical features {self.cols_to_drop} as their correlation with target variable is below the threshold of {self.corr_target_threshold} or they have high correlation with other features above the threshold of {self.corr_feature_threshold}."
-        )
         X = X.drop(columns =[feature for feature in self.cols_to_drop if feature in X.columns] )
         return X
 
@@ -417,9 +383,6 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         return self
     def transform(self, X):
         X = X.copy()
-        logging.info(
-            f"MulticollinearityDropper: Dropping features {self.cols_to_drop} due to high multicollinearity with other features and low correlation with target variable."
-        )
         X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
         return X
    
@@ -451,9 +414,6 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
         return self
     def transform(self, X):
         X = X.copy()
-        logging.info(
-            f"DropWeakCategorical: Dropping features {self.cols_to_drop} due to weak statistical relationship with target variable based on ANOVA test."
-        )
         X = X.drop(columns=[feature for feature in self.cols_to_drop if feature in X.columns])
         return X
     
@@ -506,8 +466,6 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
         self.ordinal_features = [feature for feature in self.categorical_features if feature in self.ordinal_mapping.keys()]
         self.nominal_features = [feature for feature in self.categorical_features if feature in self.nominal_categories]
-        logging.info('updated the numerical, categorical, ordinal and nominal features based on the changes in the data')
-
     #this function is for building the pre pipeline of typecasting, domain aware imputation and feature creation based on domain knowledge, which will be applied before feature selection in the data transformation process
     def build_prepipeline(self):
         prepipeline_steps = [
@@ -576,7 +534,6 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         
         self.preprocessor = self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
         self.preprocessor.fit(X_selected)
-        logging.info('preprocessor fitted successfully with the transformed training data after feature selection')
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
   
         self._is_fitted_ = True
@@ -611,7 +568,5 @@ if __name__ == "__main__":
         dt.fit(X_train, y_train)  #fitting the data transformer on the training data to learn the parameters required for transformation and feature selection
         X_train_encoded, y_train_logged = dt.transform(X_train, y_train)
         X_test_encoded = dt.transform(df_test) #as the target saleprice is not present in the test data, so need for dropping the unavailable feature
-        logging.info('Data transformation completed successfully for both training and test data')
     except Exception as e:
-        logging.info(f"Error in data transformation: {e}")
         raise CustomError(e, sys)    
