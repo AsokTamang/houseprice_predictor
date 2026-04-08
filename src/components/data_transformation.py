@@ -1,6 +1,5 @@
 import sys
 import os
-from sklearn.feature_selection import VarianceThreshold, mutual_info_regression
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
@@ -10,8 +9,6 @@ from src.exception import CustomError
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from scipy import stats
 from typing import Optional
 from src.utils import save_object, load_object
 
@@ -136,6 +133,7 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
         self.is_fitted_ = True
         return self
     def transform(self, X):
+        import numpy as np
         X = X.copy()
         binary_features = {
             'has_pool': 'poolarea',
@@ -181,6 +179,7 @@ class DropConstantNumerical(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: pd.DataFrame, y=None):
+        from sklearn.feature_selection import VarianceThreshold
         self.is_fitted_ = True
         X = X.copy()
         target = "saleprice"
@@ -221,6 +220,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: pd.DataFrame, y:pd.Series):
+        from sklearn.feature_selection import  mutual_info_regression
         self.is_fitted_ = True
         X = X.copy()
         ordinal_categories = {
@@ -368,6 +368,7 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         self.cols_to_drop: list[str] = []
         self.target_relation_threshold: float = 0.1
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        from statsmodels.stats.outliers_influence import variance_inflation_factor
         self.is_fitted_ = True
         X = X.copy()
         target = "saleprice"
@@ -392,6 +393,7 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.cols_to_drop: list[str] = []
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        from scipy import stats
         self.is_fitted_ = True
         target = "saleprice"
         categorical = [feature for feature in X.select_dtypes(exclude=np.number).columns if feature != target]
@@ -540,6 +542,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self._is_fitted_ = True
         return self
     def transform(self, X: pd.DataFrame,y:Optional[pd.Series]=None):  #for transforming the test data based on the parameters learned from the training data
+        import numpy as np
         if not self._is_fitted_:
             raise RuntimeError("DataTransformer not fitted yet.")
         if 'id' in X.columns:
