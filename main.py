@@ -1,4 +1,3 @@
-import sys
 import src.logger
 from src.exception import CustomError
 import logging

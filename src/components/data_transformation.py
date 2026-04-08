@@ -420,6 +420,7 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
 
 #classes for numerical and categorical encoding and scaling
 class DataTransformer(BaseEstimator, TransformerMixin):
+    
     nominal_categories = [
     'mssubclass', 'mszoning', 'alley', 'landcontour', 'lotconfig',
     'neighborhood', 'condition1', 'condition2', 'bldgtype', 'housestyle',
