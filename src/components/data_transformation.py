@@ -99,31 +99,16 @@ class DomainImputer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
-        for feature in X.columns:
-            if feature in self.none_features:
-                X[feature] = X[feature].fillna(
-                    "None"
-                )  # filling the missing values with 'None' for the features in none_features list
-            elif feature in self.zero_features:
-                X[feature] = X[feature].fillna(
-                    0
-                )  # filling the missing values with 0 for the features in zero_features list
-            elif feature == "lotfrontage":
-                for neighborhood, median_value in self.lot_frontage_median.items():
-                    if neighborhood in X["neighborhood"].unique():  #if the stored neighbourhood category is present in the passed data neighbourhood column, then only we use the corresponding median value of lotfrontage
-                        X.loc[X["neighborhood"] == neighborhood, "lotfrontage"] = X.loc[
-                            X["neighborhood"] == neighborhood, "lotfrontage"
-                        ].fillna(
-                            median_value
-                        )  # filling the missing values of 'LotFrontage' with the corresponding median value based on the neighborhood
-                    else:
-                        X["lotfrontage"] = X["lotfrontage"].fillna(
-                            self.global_lot_frontage_median
-                        )  # filling the missing values of 'LotFrontage' with global median value in case there are neighborhoods in test data which are not present in training data
-            elif feature == "electrical":
-                X[feature] = X[feature].fillna(
-                    self.electrical_mode
-                )  # filling the missing values of 'Electrical' column with the mode value
+        for feature in self.zero_features:
+            if feature in X.columns: X[feature] = X[feature].fillna(0)
+        for feature in self.none_features:
+            if feature in X.columns: X[feature] = X[feature].fillna("None")
+        if "lotfrontage" in X.columns and "neighborhood" in X.columns:
+            neighborhood_medians = X["neighborhood"].map(self.lot_frontage_median)
+            X["lotfrontage"] = X["lotfrontage"].fillna(neighborhood_medians).fillna(self.global_lot_frontage_median)
+
+        if "electrical" in X.columns:
+            X["electrical"] = X["electrical"].fillna(self.electrical_mode)
         return X
 
 class CreateNewFeatures(BaseEstimator, TransformerMixin):
@@ -368,6 +353,7 @@ class MulticollinearityDropper(BaseEstimator, TransformerMixin):
         self.cols_to_drop: list[str] = []
         self.target_relation_threshold: float = 0.1
     def fit(self, X: pd.DataFrame, y: pd.Series):
+        import numpy as np
         from statsmodels.stats.outliers_influence import variance_inflation_factor
         self.is_fitted_ = True
         X = X.copy()
