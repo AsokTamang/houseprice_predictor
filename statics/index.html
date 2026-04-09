@@ -1028,6 +1028,7 @@
 
     try {
       const payload = collectPayload();
+      //updated an api here 
       const res = await fetch('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
