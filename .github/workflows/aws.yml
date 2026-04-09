@@ -66,7 +66,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: salary_prediction
+          IMAGE_TAG: house_price_predictor
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -92,7 +92,7 @@ jobs:
       
       - name: Stop and remove container if running   # 1️⃣ stop container first
         run: |
-          docker ps -q --filter "name=salary_prediction" | grep -q . && docker stop salary_prediction && docker rm -fv salary_prediction || true
+          docker ps -q --filter "name=house_price_predictor" | grep -q . && docker stop house_price_predictor && docker rm -fv house_price_predictor || true
 
       - name: Remove old Docker image                # 2️⃣ then remove old image
         run: |
@@ -108,16 +108,16 @@ jobs:
 
       - name: Pull latest images
         run: |
-          docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:salary_prediction
+          docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:house_price_predictor
 
       
       - name: Run Docker Image to serve users
         run: |
-          docker run -d -p 8000:8000 --ipc="host" --name=salary_prediction \
+          docker run -d -p 8000:8000 --ipc="host" --name=house_price_predictor \
           -e 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' \
           -e 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
           -e 'AWS_REGION=${{ secrets.AWS_REGION }}' \
-          ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:salary_prediction  # ✅ fixed tag
+          ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:house_price_predictor  # ✅ fixed tag
 
       - name: Clean previous images and containers
         run: |
