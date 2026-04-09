@@ -951,7 +951,7 @@
 </div>
 
 <script>
-  const API_URL = 'http://127.0.0.1:8000/predict';
+  
 
   // ── PROGRESS TRACKING ──
   function updateProgress() {
@@ -1028,7 +1028,7 @@
 
     try {
       const payload = collectPayload();
-      const res = await fetch(API_URL, {
+      const res = await fetch('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
