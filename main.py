@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 app = FastAPI()
 app.mount('/static', StaticFiles(directory='statics'), name='statics')
 
+predict_pipeline = PredictPipeline()  #calling the predict pipeline class
 
 @app.get('/')
 def root():
@@ -100,6 +101,7 @@ class PredictRequest(BaseModel):  #class for defining the input data for predict
     yrsold: Union[int, None] = None
     saletype: Union[str, None] = None
     salecondition: Union[str, None] = None
+
 
 
 @app.get('/prediction_form')
@@ -193,7 +195,7 @@ def predict(data: PredictRequest):
         )
 
         df_features = features.get_data_as_dataframe() #converting into dataframe
-        predict_pipeline = PredictPipeline()  #calling the predict pipeline class
+        
         result = predict_pipeline.predict(df_features)
         
         return {'prediction': float(result[0])}
