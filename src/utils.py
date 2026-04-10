@@ -31,9 +31,9 @@ def model_evaluation(X_train, y_train, X_test, models, params):
         trained_models = {}
         for model_name, model in models.items():
             param = params[model_name]
-            gs = GridSearchCV(model, param, cv=5)
+            gs = GridSearchCV(model, param, cv=5)   #cross_validation to find the best hyperparameters for the current model based on the given parameters for each model
             gs.fit(X_train, y_train)  #training the model on training data with different hyperparameters and finding the best hyperparameters based on cross validation score
-            best_model = gs.best_estimator_  #finding the best model based on the best hyperparameters found by grid search
+            best_model = gs.best_estimator_  #finding the best model based on the best hyperparameters found by grid search for the current model
             logging.info(f"Best hyperparameters for {model_name} are {gs.best_params_}")  #logging the best hyperparameters found by grid search for the current model
             trained_models[model_name] = best_model  #finding the score of the best model on the cross_validation data
             cv_score = gs.best_score_

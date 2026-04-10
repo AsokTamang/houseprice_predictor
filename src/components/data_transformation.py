@@ -3,7 +3,7 @@ import os
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin  #for custom transformers for custom pipeline
 from sklearn.pipeline import Pipeline
 from src.exception import CustomError
 from dataclasses import dataclass
@@ -38,7 +38,7 @@ class TypeCaster(BaseEstimator, TransformerMixin):
         self.int_to_str_features: list[str] = ["mssubclass", "overallcond"]
 
     def fit(self, X: pd.DataFrame, y=None):
-        self.is_fitted_ = True
+        self.is_fitted_ = True  #we must assign self.is_fitted_ = True in the fit method of custom transformers , otherwise sklearn will raise an error when we  try to use this transformer in the pipeline, because sklearn checks for the presence of self.is_fitted_ attribute in the custom transformer to check whether the transformer is fitted or not
         return self
 
     def transform(self, X):
@@ -84,7 +84,7 @@ class DomainImputer(BaseEstimator, TransformerMixin):
             for neighborhood in X["neighborhood"].unique():  #looping through each unique data in the neighbourhood column
                 median_value = X.loc[
                     X["neighborhood"] == neighborhood, "lotfrontage"
-                ].median()  # extracting the median value of 'LotFrontage' for each 'Neighborhood'
+                ].median()  # extracting the median value of 'lotfrontage' of each category of the feature 'neighborhood'
                 self.lot_frontage_median[neighborhood] = (
                     median_value  # storing the median values in a dictionary with neighborhood as key and median value as value
                 )
@@ -99,12 +99,13 @@ class DomainImputer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.copy()
+        #only if the current features of X are in the list of features which we have used for imputation
         for feature in self.zero_features:
             if feature in X.columns: X[feature] = X[feature].fillna(0)
         for feature in self.none_features:
             if feature in X.columns: X[feature] = X[feature].fillna("None")
         if "lotfrontage" in X.columns and "neighborhood" in X.columns:
-            neighborhood_medians = X["neighborhood"].map(self.lot_frontage_median)
+            neighborhood_medians = X["neighborhood"].map(self.lot_frontage_median)  #getting the median value of 'lotfrontage' based on the category of 'neighbourhood'
             X["lotfrontage"] = X["lotfrontage"].fillna(neighborhood_medians).fillna(self.global_lot_frontage_median)
 
         if "electrical" in X.columns:
@@ -129,6 +130,7 @@ class CreateNewFeatures(BaseEstimator, TransformerMixin):
             'has_masonry': 'masvnrarea'
         }
         #creation of age features
+        #if the current X has the necessary features, then only we make the new features based on those required features such as 'yearbuilt','yearsold',.......    
         if all(c in X.columns for c in ['yearbuilt','yrsold']):
          X['house_age'] = X['yrsold'] - X['yearbuilt']  #creating the age of house
         if all(c in X.columns for c in ['garageyrblt','yrsold']): 
@@ -247,7 +249,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
                 mapping = {
                     k: i for i, k in enumerate(ordinal_categories[feature])
                 }  # creating the dictionary which shows the category as key and its corresponding index as value, here index represents the position of the category in the given order of current nominal categorical feature
-                x = X[feature].map(mapping).to_frame(name=feature)
+                x = X[feature].map(mapping).to_frame(name=feature)  #converting into dataframe
             else:
                 x = (
                     X[feature].astype("category").cat.codes.to_frame(name=feature)
@@ -257,7 +259,7 @@ class DropConstantCategorical(BaseEstimator, TransformerMixin):
             )  # calculating the statistical relationship between categories and the target variable, and here we are using .loc[x.index] for matching the corresponding training data and output variable
             mi_storage[feature] = mi[
                 0
-            ]  # storing the feature as key and the mi value as the value in the dict
+            ]  # storing the feature as key and its mi value as the value in the dict
         self.cols_to_drop = [
             feature
             for feature, mi_value in mi_storage.items()
@@ -348,7 +350,7 @@ class NumericFeatureSelection(BaseEstimator, TransformerMixin):
         return X
 
 #dropping the features which have high multicollinearity with other features and very weak correlation with target variable, because they are the redundant features
-class MulticollinearityDropper(BaseEstimator, TransformerMixin):
+class MulticollinearityDropper(BaseEstimator, TransformerMixin):  #this applies only on numerical features
     def __init__(self):
         self.cols_to_drop: list[str] = []
         self.target_relation_threshold: float = 0.1
@@ -389,7 +391,7 @@ class DropWeakCategorical(BaseEstimator, TransformerMixin):
             groups = [y.loc[group.index].values for _,group in X.groupby(feature) if len(group)>0]  #extracting the values of the saleprice based on different categories of current feature, based on the index of the category
             if len(groups) <2:
                 self.cols_to_drop.append(feature)  #if there is only one category in the current feature, then we can directly drop that feature as it doesn't have any statistical relationship with the target variable   
-                continue  #skipping the current feature     
+                continue  #skipping the current feature, as we cannot calculate the ANOVA test for the feature having only one category  
             f_stats,p_value = stats.f_oneway(*groups)  #anova test of different saleprice values based on each categories of current feature
             anova_report.append({
                 'feature':feature,
@@ -446,10 +448,10 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.nominal_features:list[str] = []
         self._is_fitted_:bool = False
         self.pre_pipeline:Optional[Pipeline] = None  
-        self.feature_selection_pipeline: Optional[Pipeline] = None #22222
+        self.feature_selection_pipeline: Optional[Pipeline] = None 
         self.preprocessor: Optional[ColumnTransformer] = None  
     
-    #this function is for updating the numerical, categorical, ordinal and nominal features 
+    #this function is for updating the numerical, categorical, ordinal and nominal features after applying feature selection, feature engineering and so on
     def update_features_collection(self, X: pd.DataFrame) -> None:
         self.categorical_features = [feature for feature in X.select_dtypes(exclude=np.number).columns]
         self.numerical_features = [feature for feature in X.select_dtypes(include=np.number).columns if feature != 'saleprice']
@@ -522,7 +524,7 @@ class DataTransformer(BaseEstimator, TransformerMixin):
         self.update_features_collection(X_selected)  #updating the numerical, categorical, ordinal and nominal features based on the changes in the data after applying the feature selection pipeline
         
         self.preprocessor = self.build_preprocessor()  #building the preprocessor for encoding and scaling based on the updated numerical, ordinal and nominal features after feature selection
-        self.preprocessor.fit(X_selected)
+        self.preprocessor.fit(X_selected)  #can use either fit or fit_transform for the preprocessor method
         save_object(self.config.preprocessor_obj_file_path, self.preprocessor)
   
         self._is_fitted_ = True

@@ -7,8 +7,8 @@ import pandas as pd
 
 @dataclass
 class DataIngestionConfig:
-    train_data_path:str = os.path.join('root_data','train_data.csv')
-    test_data_path:str = os.path.join('root_data','test_data.csv')
+    train_data_path:str = os.path.join('root_data','train_data.csv')  #destination for training data 
+    test_data_path:str = os.path.join('root_data','test_data.csv')    #destination for test data
 
 
 class DataIngestion:
