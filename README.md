@@ -202,7 +202,7 @@ All 79 features are optional — missing values are intelligently imputed using 
 
 > _Screenshots of the prediction form UI and results page would go here._
 
-| Home Page | Prediction Form |
+| Prediction Form | House Predicted Price  |
 |---|---|
 | ![Prediction Form](./assets/prediction_form.png) | ![Output](./assets/outcome.png) 
 
