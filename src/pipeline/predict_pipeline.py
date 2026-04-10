@@ -24,7 +24,7 @@ class PredictPipeline:
             
             predicted_price =self.model.predict(features)  #predicting the target variable using the trained model on the input features
             logging.info(f"The predicted price of the house is {predicted_price[0]}")  #logging the predicted price of the house
-            return np.expm1(predicted_price) 
+            return np.expm1(predicted_price)   #as we have used log in the target variable during traininig, so converting the predicted price back into the oringinal price
         except Exception as e:
             import traceback
             traceback.print_exc()  # ← prints full stack trace to console
