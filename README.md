@@ -18,6 +18,7 @@
 
 The project solves a classic real estate problem: **given the physical and contextual attributes of a home, what is its likely market value?** It covers the full ML lifecycle — data ingestion, validation, feature engineering, model training, and serving predictions through a REST API with a user-friendly frontend.
 
+
 This project is built on the **Ames Housing Dataset**, a well-known benchmark dataset for regression problems, and is structured following **production-grade software engineering practices** with modular pipelines, custom transformers, hyperparameter-tuned XGBoost, and a fully automated CI/CD pipeline that builds a Docker image and deploys to **AWS EC2** on every push.
 Data link: https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques/data 
 ---
